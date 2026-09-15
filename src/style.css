@@ -15,7 +15,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 ::selection { background: var(--accent); color: var(--on-accent); }
 .skip { position: fixed; top: -80px; left: 20px; padding: 14px; background: var(--accent); color: var(--on-accent); z-index: 100; }
 .skip:focus { top: 12px; }
-.shell { overflow: clip; background: radial-gradient(ellipse at 70% 0%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 34%), var(--bg); }
+.shell { position: relative; isolation: isolate; overflow: clip; background: radial-gradient(ellipse at 70% 0%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 34%), var(--bg); }
+.shell::before { content: ''; position: fixed; z-index: -1; inset: -18% -12%; pointer-events: none; opacity: .42; filter: blur(72px) saturate(125%); background: radial-gradient(ellipse at 17% 18%, color-mix(in srgb, var(--accent) 16%, transparent) 0 8%, transparent 31%), radial-gradient(ellipse at 82% 22%, color-mix(in srgb, var(--secondary) 13%, transparent) 0 7%, transparent 29%), radial-gradient(ellipse at 55% 76%, color-mix(in srgb, var(--accent) 10%, transparent) 0 9%, transparent 33%); animation: aurora-drift 20s ease-in-out infinite alternate; }
+@keyframes aurora-drift { from { transform: translate3d(-2%, -1%, 0) rotate(-1deg) scale(1); } to { transform: translate3d(2%, 1%, 0) rotate(1deg) scale(1.06); } }
 .site-header { max-width: 1440px; margin: auto; min-height: 100px; display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 24px 5%; border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
 .brand { display: flex; gap: 10px; align-items: center; flex-shrink: 0; font-size: 19px; font-weight: 750; letter-spacing: -.8px; }
 .brandmark { width: 37px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); font-size: 30px; line-height: 1; letter-spacing: -2px; padding-right: 3px; }
@@ -32,6 +34,8 @@ main, footer { max-width: 1280px; margin: auto; width: 90%; }
 
 /* Introduction */
 .hero { padding-top: 34px; }
+.hero { position: relative; }
+.hero::after { content: ''; position: absolute; z-index: -1; width: 38vw; height: 30vw; right: 22%; top: 12%; border-radius: 50%; background: color-mix(in srgb, var(--accent) 5%, transparent); filter: blur(80px); pointer-events: none; }
 .hero-topline { display: flex; justify-content: space-between; font: 9px monospace; color: var(--muted); letter-spacing: 1.4px; }
 .hero-topline .dot { margin-right: 8px; }
 .hero-grid { display: grid; grid-template-columns: 1.2fr 1fr; align-items: center; gap: 6%; padding: 72px 0 76px; }
