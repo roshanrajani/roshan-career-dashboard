@@ -164,6 +164,9 @@ export function FluidCanvas() {
       const inside = event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
       if (!inside) {
         cursor.active = 0;
+        cursor.speed = 0;
+        cursor.lastX = -1;
+        cursor.lastY = -1;
         return;
       }
       const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / Math.max(rect.width, 1)));
@@ -179,7 +182,12 @@ export function FluidCanvas() {
       cursor.lastY = y;
       cursor.active = 1;
     };
-    const leave = () => { cursor.active = 0; };
+    const leave = () => {
+      cursor.active = 0;
+      cursor.speed = 0;
+      cursor.lastX = -1;
+      cursor.lastY = -1;
+    };
     const render = (now: number) => {
       const elapsed = Math.min(50, now - last);
       last = now;
