@@ -10,6 +10,7 @@ import {Game} from './Game';
 import {ResumeDownload} from './ResumeDownload';
 type View='Overview'|'Experience'|'Projects'|'Skills'|'Games'|'Saved';
 function App(){
+ useEffect(()=>{const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;if(reduced)return;const shell=document.querySelector<HTMLElement>('.shell');if(!shell)return;let frame=0,x=0,y=0;const move=(event:PointerEvent)=>{x=event.clientX;y=event.clientY;if(!frame)frame=requestAnimationFrame(()=>{shell.style.setProperty('--pointer-x',`${x}px`);shell.style.setProperty('--pointer-y',`${y}px`);frame=0})};window.addEventListener('pointermove',move,{passive:true});return()=>{window.removeEventListener('pointermove',move);if(frame)cancelAnimationFrame(frame)}},[]);
  const [view,setView]=useState<View>('Overview'),[query,setQuery]=useState(''),[category,setCategory]=useState('All'),[selected,setSelected]=useState<(typeof projects)[number]|null>(null);
  const [saved,setSaved]=useState<string[]>(()=>{try{const value=JSON.parse(localStorage.getItem('career-saved')||'[]');return Array.isArray(value)?value.filter((v):v is string=>typeof v==='string'):[]}catch{return []}});
  const dialog=useRef<HTMLDialogElement>(null);
