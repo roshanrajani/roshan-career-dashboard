@@ -45,6 +45,15 @@ main, footer { max-width: 1280px; margin: auto; width: 90%; }
 .hero-button:hover { transform: translateY(-3px); }
 .resume-link { display: inline-flex; align-items: center; gap: 9px; font-size: 12px; min-height: 44px; }
 .resume-link:hover { color: var(--accent); }
+.resume-link { background: none; padding: 0; color: var(--text); }
+.resume-email-label { display: block; font-size: 13px; margin-bottom: 8px; }
+.resume-dialog input[type=email] { width: 100%; padding: 13px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: 16px; }
+.resume-consent { display: flex; align-items: flex-start; gap: 10px; margin: 20px 0; font-size: 12px; line-height: 1.7; color: var(--secondary); }
+.resume-consent input { margin-top: 5px; accent-color: var(--accent); flex-shrink: 0; }
+.resume-honeypot { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.resume-error { border-left: 2px solid var(--accent); padding-left: 12px; }
+.resume-error a { text-decoration: underline; }
+.resume-dialog button:disabled { opacity: .6; cursor: wait; }
 .hero-footnote { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 40px; font: 8px monospace; color: var(--muted); letter-spacing: 1px; }
 .hero-footnote>span { width: 25px; height: 1px; background: var(--border); margin-right: 4px; }
 .hero-footnote strong { font-family: 'DM Sans', sans-serif; font-size: 11px; letter-spacing: 0; color: var(--secondary); font-weight: 500; }
