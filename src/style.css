@@ -3,3 +3,4 @@
 
 .game-panel{background:#193f32;color:#eef7e8;border-radius:18px;padding:26px;margin-bottom:30px}.game-panel canvas{display:block;width:min(100%,520px);height:auto;border-radius:12px;border:1px solid #4c6b50;margin:18px 0}.game-intro{color:#b9cdb2;font-size:13px}.game-score{font-size:12px;color:#c9eb90}.game-start{background:#d7fb79;border-color:#d7fb79;color:#18301f}
 .page-heading.hidden{display:none}
+.game-meta{display:flex;justify-content:space-between;max-width:520px;color:#b9cdb2;font-size:12px;margin:-8px 0 16px}
