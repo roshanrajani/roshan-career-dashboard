@@ -15,7 +15,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 ::selection { background: var(--accent); color: var(--on-accent); }
 .skip { position: fixed; top: -80px; left: 20px; padding: 14px; background: var(--accent); color: var(--on-accent); z-index: 100; }
 .skip:focus { top: 12px; }
-.shell { overflow: clip; }
+.shell { overflow: clip; background: radial-gradient(ellipse at 70% 0%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 34%), var(--bg); }
 .site-header { max-width: 1440px; margin: auto; min-height: 100px; display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 24px 5%; border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
 .brand { display: flex; gap: 10px; align-items: center; flex-shrink: 0; font-size: 19px; font-weight: 750; letter-spacing: -.8px; }
 .brandmark { width: 37px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); font-size: 30px; line-height: 1; letter-spacing: -2px; padding-right: 3px; }

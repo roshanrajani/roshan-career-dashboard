@@ -2,9 +2,9 @@
 :root {
   --accent: #d7fb79;
   --on-accent: #18220e;
-  --bg: #101211;
-  --surface: #191f17;
-  --raised: #252e20;
+  --bg: #090c0b;
+  --surface: #111713;
+  --raised: #19231b;
   --border: #3d4c32;
   --subtle: #70825e;
   --muted: #a0ae92;
@@ -16,9 +16,9 @@
 :root[data-theme="blue"] {
   --accent: #68d8ff;
   --on-accent: #10243b;
-  --bg: #0d1420;
-  --surface: #152235;
-  --raised: #21354c;
+  --bg: #080d17;
+  --surface: #111b2a;
+  --raised: #192b40;
   --border: #3b5673;
   --subtle: #6c8dad;
   --muted: #9db4cd;
@@ -30,9 +30,9 @@
 :root[data-theme="orange"] {
   --accent: #ff9d5c;
   --on-accent: #351c10;
-  --bg: #191210;
-  --surface: #281d18;
-  --raised: #3b2a21;
+  --bg: #120d0b;
+  --surface: #211712;
+  --raised: #302017;
   --border: #664936;
   --subtle: #a58064;
   --muted: #c5a58d;
