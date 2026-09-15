@@ -1,0 +1,42 @@
+/* Shared palette for every component, including responsive layouts. */
+:root {
+  --accent: #d7fb79;
+  --on-accent: #18220e;
+  --bg: #101211;
+  --surface: #191f17;
+  --raised: #252e20;
+  --border: #3d4c32;
+  --subtle: #70825e;
+  --muted: #a0ae92;
+  --secondary: #c1cdb4;
+  --text: #e2ead9;
+  --bright: #f2f5ec;
+}
+
+:root[data-theme="blue"] {
+  --accent: #68d8ff;
+  --on-accent: #10243b;
+  --bg: #0d1420;
+  --surface: #152235;
+  --raised: #21354c;
+  --border: #3b5673;
+  --subtle: #6c8dad;
+  --muted: #9db4cd;
+  --secondary: #bed1e5;
+  --text: #e0ebf6;
+  --bright: #f0f7ff;
+}
+
+:root[data-theme="orange"] {
+  --accent: #ff9d5c;
+  --on-accent: #351c10;
+  --bg: #191210;
+  --surface: #281d18;
+  --raised: #3b2a21;
+  --border: #664936;
+  --subtle: #a58064;
+  --muted: #c5a58d;
+  --secondary: #dfc4af;
+  --text: #f0e1d5;
+  --bright: #fff5ed;
+}
