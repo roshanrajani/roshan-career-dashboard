@@ -1,0 +1,13 @@
+export const experiences = [
+ {company:'Transamerica',role:'Lead UI Developer',period:'Apr 2023 — Present',year:'2023',location:'New Jersey',description:'Leading UI/UX development for an enterprise financial platform, building design systems and mentoring junior developers.',tags:['Financial services','Design systems','Leadership']},
+ {company:'Wells Fargo',role:'Senior UI Developer',period:'Sep 2022 — Apr 2023',year:'2022',location:'New York',description:'Led UI development for customer-facing banking applications with a focus on accessibility.',tags:['Banking','Accessibility','Component library']},
+ {company:'Transamerica',role:'Senior Frontend Developer',period:'Mar 2021 — Aug 2022',year:'2021',location:'New Jersey',description:'Built responsive interfaces and interactive data visualizations for enterprise dashboards.',tags:['Dashboards','Data visualization']},
+ {company:'IBM',role:'Angular Developer',period:'Jan 2021 — Mar 2021',year:'2021',location:'New York',description:'Developed enterprise UI components and contributed to design system documentation.',tags:['Angular','Documentation']},
+ {company:'Paychex',role:'Frontend Developer',period:'Mar 2018 — Dec 2020',year:'2018',location:'Rochester, NY',description:'Created pixel-perfect UI implementations and smooth micro-animations for an HR platform.',tags:['HR technology','Frontend']},
+ {company:'Serco',role:'UI Developer',period:'Sep 2014 — Dec 2015',year:'2014',location:'Hyderabad, India',description:'Built responsive web interfaces and developed modern CSS techniques.',tags:['Responsive design','CSS']}
+];
+export const projects = [
+ {id:'dashboard',name:'Enterprise Dashboard UI',category:'Financial technology',description:'A comprehensive financial dashboard with real-time data visualization, interactive charts, and responsive layouts.',tags:['Angular','D3.js','SCSS','RxJS'],theme:'mint',focus:['Interactive financial data visualization','Responsive dashboard layouts','Reactive user experiences']},
+ {id:'design-system',name:'Design System & Component Library',category:'Developer experience',description:'A scalable design system with reusable components, comprehensive documentation, and Storybook integration across enterprise applications.',tags:['React','Storybook','TypeScript','Tailwind'],theme:'peach',focus:['Reusable component architecture','Documented component patterns','Consistent interfaces across applications']}
+];
+export const skills = [{category:'Frontend',items:['Angular','React','TypeScript','JavaScript','HTML5']},{category:'Styling',items:['CSS/SCSS','Tailwind','Animations']},{category:'Design & tools',items:['Figma','UI/UX Design','Git']}];
