@@ -7,6 +7,7 @@ import './studio.css';
 import {Game} from './Game';
 type View='Overview'|'Experience'|'Projects'|'Skills'|'Games'|'Saved';
 function App(){
+ useEffect(()=>{const themes=['neon','orange','blue'];const theme=themes[Math.floor(Math.random()*themes.length)];document.documentElement.dataset.theme=theme;const icon=document.querySelector<HTMLLinkElement>('link[rel="icon"]');if(icon)icon.href=theme==='neon'?'/favicon.svg':('/favicon-'+theme+'.svg')},[]);
  const [view,setView]=useState<View>('Overview'),[query,setQuery]=useState(''),[category,setCategory]=useState('All'),[selected,setSelected]=useState<(typeof projects)[number]|null>(null);
  const [saved,setSaved]=useState<string[]>(()=>{try{const value=JSON.parse(localStorage.getItem('career-saved')||'[]');return Array.isArray(value)?value.filter((v):v is string=>typeof v==='string'):[]}catch{return []}});
  const dialog=useRef<HTMLDialogElement>(null);
