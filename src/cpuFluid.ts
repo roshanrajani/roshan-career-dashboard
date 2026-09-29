@@ -15,7 +15,8 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
     red = new Float32Array(0),
     green = new Float32Array(0),
     blue = new Float32Array(0);
-  let temp = new Float32Array(0),
+  let reverse = new Float32Array(0),
+    temp = new Float32Array(0),
     nextU = new Float32Array(0),
     nextV = new Float32Array(0),
     pressure = new Float32Array(0),
@@ -41,7 +42,7 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
     const ratio = Math.min(devicePixelRatio || 1, 1.5);
     canvas.width = Math.max(1, Math.round(rect.width * ratio));
     canvas.height = Math.max(1, Math.round(rect.height * ratio));
-    const scale = 240 / Math.max(rect.width, rect.height, 1);
+    const scale = 300 / Math.max(rect.width, rect.height, 1);
     w = Math.max(32, Math.round(rect.width * scale));
     h = Math.max(32, Math.round(rect.height * scale));
     count = w * h;
@@ -52,13 +53,14 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
       green,
       blue,
       temp,
+      reverse,
       nextU,
       nextV,
       pressure,
       nextPressure,
       divergence,
       curl,
-    ] = Array.from({ length: 12 }, () => new Float32Array(count));
+    ] = Array.from({ length: 13 }, () => new Float32Array(count));
     ink.width = w;
     ink.height = h;
     pixels = inkCtx.createImageData(w, h);
@@ -89,6 +91,41 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
         dest[i] = sample(source, x - u[i] * dt, y - v[i] * dt) * decay;
       }
   };
+  // Correct the diffusion from backtracing, then clamp to nearby source values.
+  // This preserves thin curls without allowing negative ink or bright fringes.
+  const transportInk = (
+    source: Float32Array,
+    dest: Float32Array,
+    dt: number,
+    decay: number,
+  ) => {
+    advect(source, dest, dt, 1);
+    advect(dest, reverse, -dt, 1);
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        const sx = Math.floor(Math.max(0, Math.min(w - 1.001, x - u[i] * dt)));
+        const sy = Math.floor(Math.max(0, Math.min(h - 1.001, y - v[i] * dt)));
+        const j = sy * w + sx;
+        const low = Math.min(
+          source[j],
+          source[j + 1],
+          source[j + w],
+          source[j + w + 1],
+        );
+        const high = Math.max(
+          source[j],
+          source[j + 1],
+          source[j + w],
+          source[j + w + 1],
+        );
+        dest[i] =
+          Math.max(
+            low,
+            Math.min(high, dest[i] + 0.5 * (source[i] - reverse[i])),
+          ) * decay;
+      }
+  };
   const render = (now: number) => {
     frame = 0;
     if (document.hidden) return;
@@ -108,7 +145,7 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
         const i = y * w + x;
         const fx = Math.abs(curl[i + w]) - Math.abs(curl[i - w]);
         const fy = Math.abs(curl[i - 1]) - Math.abs(curl[i + 1]);
-        const gain = (dt * 12 * curl[i]) / (Math.hypot(fx, fy) + 0.0001);
+        const gain = (dt * 18 * curl[i]) / (Math.hypot(fx, fy) + 0.0001);
         u[i] = Math.max(-120, Math.min(120, u[i] + fx * gain));
         v[i] = Math.max(-120, Math.min(120, v[i] + fy * gain));
       }
@@ -139,12 +176,12 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
         u[i] -= 0.5 * (pressure[i + 1] - pressure[i - 1]);
         v[i] -= 0.5 * (pressure[i + w] - pressure[i - w]);
       }
-    const decay = Math.exp(-dt * 1.4);
-    advect(red, temp, dt, decay);
+    const decay = Math.exp(-dt * 1.6);
+    transportInk(red, temp, dt, decay);
     [red, temp] = [temp, red];
-    advect(green, temp, dt, decay);
+    transportInk(green, temp, dt, decay);
     [green, temp] = [temp, green];
-    advect(blue, temp, dt, decay);
+    transportInk(blue, temp, dt, decay);
     [blue, temp] = [temp, blue];
     for (let i = 0; i < count; i++) {
       const r = 1 - Math.exp(-red[i]),
@@ -154,13 +191,17 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
       pixels.data[i * 4] = alpha ? (r / alpha) * 255 : 0;
       pixels.data[i * 4 + 1] = alpha ? (g / alpha) * 255 : 0;
       pixels.data[i * 4 + 2] = alpha ? (b / alpha) * 255 : 0;
-      pixels.data[i * 4 + 3] = alpha * 150;
+      pixels.data[i * 4 + 3] = alpha * 170;
     }
     inkCtx.putImageData(pixels, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
+    // Ease the last faint residue out before putting the animation to sleep.
+    const fade = Math.max(0, Math.min(1, (until - now) / 750));
+    ctx.globalAlpha = fade * fade * (3 - 2 * fade);
     ctx.drawImage(ink, 0, 0, canvas.width, canvas.height);
+    ctx.globalAlpha = 1;
     if (now < until) frame = requestAnimationFrame(render);
     else clear();
   };
@@ -178,8 +219,8 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
         length = Math.hypot(dx, dy);
       if (length > 0.02) {
         const steps = Math.min(24, Math.ceil(length)),
-          radius = 3.2;
-        const hue = performance.now() * 0.00012 + 0.25 + (x / w) * 0.22;
+          radius = 2.8;
+        const hue = performance.now() * 0.00007 + 0.25 + (x / w) * 0.22;
         const color = [0, 0.33, 0.67].map(
           (shift) =>
             0.08 +
@@ -202,8 +243,8 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
                 weight = Math.exp(
                   -((ix - cx) ** 2 + (iy - cy) ** 2) / radius ** 2,
                 );
-              u[i] += Math.max(-50, Math.min(50, (dx * 9) / steps)) * weight;
-              v[i] += Math.max(-50, Math.min(50, (dy * 9) / steps)) * weight;
+              u[i] += Math.max(-50, Math.min(50, (dx * 13) / steps)) * weight;
+              v[i] += Math.max(-50, Math.min(50, (dy * 13) / steps)) * weight;
               red[i] = Math.min(5, red[i] + color[0] * weight * 0.5);
               green[i] = Math.min(5, green[i] + color[1] * weight * 0.5);
               blue[i] = Math.min(5, blue[i] + color[2] * weight * 0.5);

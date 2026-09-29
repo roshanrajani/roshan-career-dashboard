@@ -2,4 +2,4 @@
 document.documentElement.dataset.theme = 'neon';
 const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
 if (icon) icon.href = '/favicon.svg';
-document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#ffffff');
+document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#101216');

@@ -1,16 +1,16 @@
-/* White surfaces with neon accents and readable foregrounds. */
+/* Deep charcoal with neon accents. */
 :root {
-  color-scheme: light;
+  color-scheme: dark;
   --accent: #d7fb79;
-  --accent-ink: #4b6815;
+  --accent-ink: #d7fb79;
   --on-accent: #18220e;
-  --bg: #ffffff;
-  --surface: #f6f7f5;
-  --raised: #edf0e9;
-  --border: #d5dacf;
-  --subtle: #68735e;
-  --muted: #596151;
-  --secondary: #3d4537;
-  --text: #20261d;
-  --bright: #10150e;
+  --bg: #101216;
+  --surface: #191c22;
+  --raised: #232730;
+  --border: #383e49;
+  --subtle: #949daa;
+  --muted: #aab2bf;
+  --secondary: #ccd2dc;
+  --text: #e6eaf0;
+  --bright: #f7f9fc;
 }

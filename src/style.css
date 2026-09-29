@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=Manrope:wght@400;500;600;650;700;750;800&display=swap');
 
 /* Foundation: every interface color comes from the shared three-theme palette. */
-:root { font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--bg); font-synthesis: none; color-scheme: light; }
+:root { font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--bg); font-synthesis: none; color-scheme: dark; }
 * { box-sizing: border-box; }
 body { margin: 0; }
 button, input, select { font: inherit; }
