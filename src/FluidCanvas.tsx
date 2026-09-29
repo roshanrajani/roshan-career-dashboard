@@ -442,10 +442,9 @@ export function FluidCanvas() {
       dispose();
       dispose = () => {};
       if (!motion.matches) {
-        // Avoid the float-texture path on Windows drivers showing corruption.
-        // Query override allows testing exactly that renderer on other systems.
+        // Use the same WebGL effect on every OS. Keep an explicit compatibility
+        // override available for troubleshooting individual graphics drivers.
         const compatible =
-          /Windows/i.test(navigator.userAgent) ||
           new URLSearchParams(location.search).get("fluid") === "cpu";
         dispose = compatible ? startCpuFluid(element) : startFluid(element);
       }
