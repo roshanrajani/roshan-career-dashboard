@@ -13,44 +13,73 @@ precision highp sampler2D;
 in vec2 uv; out vec4 result;
 uniform sampler2D source, velocity, pressure, curl;
 uniform vec2 texel; uniform float dt;
-vec4 linearSample(sampler2D field,vec2 p){
+uniform int sourceKind, outputKind;
+#ifdef PACKED_FIELDS
+float unpackSigned(vec2 bytes){
+  vec2 b=floor(bytes*255.+.5);
+  return (b.x*256.+b.y-32768.)/32.;
+}
+vec2 packSigned(float value){
+  float n=floor(clamp(value*32.+32768.,0.,65535.)+.5);
+  return vec2(floor(n/256.),mod(n,256.))/255.;
+}
+#endif
+vec4 readField(sampler2D field,vec2 p,int kind){
+  vec4 value=texture(field,p);
+#ifdef PACKED_FIELDS
+  if(kind==1)return vec4(unpackSigned(value.rg),unpackSigned(value.ba),0.,0.);
+  if(kind==2)return vec4(unpackSigned(value.rg),0.,0.,0.);
+  return vec4(value.rgb*value.rgb*8.,0.);
+#else
+  return value;
+#endif
+}
+vec4 encodeField(vec4 value,int kind){
+#ifdef PACKED_FIELDS
+  if(kind==1)return vec4(packSigned(value.x),packSigned(value.y));
+  if(kind==2)return vec4(packSigned(value.x),0.,1.);
+  if(kind==0)return vec4(sqrt(clamp(value.rgb/8.,0.,1.)),1.);
+#endif
+  return value;
+}
+vec4 linearSample(sampler2D field,vec2 p,int kind){
   vec2 size=vec2(textureSize(field,0)),cell=p*size-.5,f=fract(cell);
   vec2 base=(floor(cell)+.5)/size,s=1./size;
-  return mix(mix(texture(field,base),texture(field,base+vec2(s.x,0.)),f.x),
-    mix(texture(field,base+vec2(0.,s.y)),texture(field,base+s),f.x),f.y);
+  return mix(mix(readField(field,base,kind),readField(field,base+vec2(s.x,0.),kind),f.x),
+    mix(readField(field,base+vec2(0.,s.y),kind),readField(field,base+s,kind),f.x),f.y);
 }
 `;
 const shaders = {
   advect: `uniform float decay;
-    void main(){result=linearSample(source,uv-dt*linearSample(velocity,uv).xy*texel)*exp(-decay*dt);}`,
+    void main(){result=linearSample(source,uv-dt*linearSample(velocity,uv,1).xy*texel,sourceKind)*exp(-decay*dt);}`,
   splat: `uniform vec2 point,aspect; uniform vec3 amount; uniform float radius;
-    void main(){vec2 d=(uv-point)*aspect;result=texture(source,uv)+vec4(amount*exp(-dot(d,d)/radius),0.);}`,
+    void main(){vec2 d=(uv-point)*aspect;result=readField(source,uv,sourceKind)+vec4(amount*exp(-dot(d,d)/radius),0.);}`,
   curl: `void main(){
-    float l=texture(velocity,uv-vec2(texel.x,0.)).y,r=texture(velocity,uv+vec2(texel.x,0.)).y;
-    float b=texture(velocity,uv-vec2(0.,texel.y)).x,t=texture(velocity,uv+vec2(0.,texel.y)).x;
+    float l=readField(velocity,uv-vec2(texel.x,0.),1).y,r=readField(velocity,uv+vec2(texel.x,0.),1).y;
+    float b=readField(velocity,uv-vec2(0.,texel.y),1).x,t=readField(velocity,uv+vec2(0.,texel.y),1).x;
     result=vec4(.5*(r-l-t+b),0.,0.,0.);}`,
   vorticity: `void main(){
-    float l=abs(texture(curl,uv-vec2(texel.x,0.)).x),r=abs(texture(curl,uv+vec2(texel.x,0.)).x);
-    float b=abs(texture(curl,uv-vec2(0.,texel.y)).x),t=abs(texture(curl,uv+vec2(0.,texel.y)).x);
-    vec2 force=.5*vec2(t-b,l-r);force/=length(force)+.0001;force*=18.*texture(curl,uv).x;
-    result=vec4(clamp(texture(velocity,uv).xy+dt*force,-600.,600.),0.,0.);}`,
+    float l=abs(readField(curl,uv-vec2(texel.x,0.),2).x),r=abs(readField(curl,uv+vec2(texel.x,0.),2).x);
+    float b=abs(readField(curl,uv-vec2(0.,texel.y),2).x),t=abs(readField(curl,uv+vec2(0.,texel.y),2).x);
+    vec2 force=.5*vec2(t-b,l-r);force/=length(force)+.0001;force*=18.*readField(curl,uv,2).x;
+    result=vec4(clamp(readField(velocity,uv,1).xy+dt*force,-600.,600.),0.,0.);}`,
   divergence: `void main(){
-    vec2 c=texture(velocity,uv).xy;
-    float l=texture(velocity,uv-vec2(texel.x,0.)).x,r=texture(velocity,uv+vec2(texel.x,0.)).x;
-    float b=texture(velocity,uv-vec2(0.,texel.y)).y,t=texture(velocity,uv+vec2(0.,texel.y)).y;
+    vec2 c=readField(velocity,uv,1).xy;
+    float l=readField(velocity,uv-vec2(texel.x,0.),1).x,r=readField(velocity,uv+vec2(texel.x,0.),1).x;
+    float b=readField(velocity,uv-vec2(0.,texel.y),1).y,t=readField(velocity,uv+vec2(0.,texel.y),1).y;
     if(uv.x<texel.x)l=-c.x;if(uv.x>1.-texel.x)r=-c.x;
     if(uv.y<texel.y)b=-c.y;if(uv.y>1.-texel.y)t=-c.y;
     result=vec4(.5*(r-l+t-b),0.,0.,0.);}`,
   pressure: `void main(){
-    float l=texture(pressure,uv-vec2(texel.x,0.)).x,r=texture(pressure,uv+vec2(texel.x,0.)).x;
-    float b=texture(pressure,uv-vec2(0.,texel.y)).x,t=texture(pressure,uv+vec2(0.,texel.y)).x;
-    result=vec4((l+r+b+t-texture(source,uv).x)*.25,0.,0.,0.);}`,
+    float l=readField(pressure,uv-vec2(texel.x,0.),2).x,r=readField(pressure,uv+vec2(texel.x,0.),2).x;
+    float b=readField(pressure,uv-vec2(0.,texel.y),2).x,t=readField(pressure,uv+vec2(0.,texel.y),2).x;
+    result=vec4((l+r+b+t-readField(source,uv,sourceKind).x)*.25,0.,0.,0.);}`,
   project: `void main(){
-    float l=texture(pressure,uv-vec2(texel.x,0.)).x,r=texture(pressure,uv+vec2(texel.x,0.)).x;
-    float b=texture(pressure,uv-vec2(0.,texel.y)).x,t=texture(pressure,uv+vec2(0.,texel.y)).x;
-    result=vec4(texture(velocity,uv).xy-vec2(r-l,t-b)*.5,0.,0.);}`,
+    float l=readField(pressure,uv-vec2(texel.x,0.),2).x,r=readField(pressure,uv+vec2(texel.x,0.),2).x;
+    float b=readField(pressure,uv-vec2(0.,texel.y),2).x,t=readField(pressure,uv+vec2(0.,texel.y),2).x;
+    result=vec4(readField(velocity,uv,1).xy-vec2(r-l,t-b)*.5,0.,0.);}`,
   display: `void main(){
-    vec3 color=1.-exp(-max(linearSample(source,uv).rgb,0.)*.85);
+    vec3 color=1.-exp(-max(linearSample(source,uv,sourceKind).rgb,0.)*.85);
     float strength=max(color.r,max(color.g,color.b));
     result=vec4(color*.68,strength*.68);}`,
 };
@@ -61,7 +90,14 @@ function startFluid(canvas: HTMLCanvasElement) {
     antialias: false,
     depth: false,
   });
-  if (!gl || !gl.getExtension("EXT_color_buffer_float")) return () => {};
+  if (!gl) return () => {};
+  const packed =
+    /Windows/i.test(navigator.userAgent) ||
+    new URLSearchParams(location.search).get("fluid") === "packed" ||
+    !gl.getExtension("EXT_color_buffer_float");
+  // Dithering must be off: each byte stores data, not a display color.
+  gl.disable(gl.DITHER);
+  gl.disable(gl.BLEND);
   const programs: WebGLProgram[] = [],
     textures: WebGLTexture[] = [],
     framebuffers: WebGLFramebuffer[] = [];
@@ -96,7 +132,19 @@ function startFluid(canvas: HTMLCanvasElement) {
         const program = gl.createProgram()!;
         programs.push(program);
         const vs = compile(gl.VERTEX_SHADER, vertex),
-          fs = compile(gl.FRAGMENT_SHADER, header + fragment);
+          fs = compile(
+            gl.FRAGMENT_SHADER,
+            (packed
+              ? header.replace(
+                  "#version 300 es",
+                  "#version 300 es\n#define PACKED_FIELDS",
+                )
+              : header) +
+              fragment.replace(
+                /result=([^;]+);/g,
+                "result=encodeField($1,outputKind);",
+              ),
+          );
         gl.attachShader(program, vs);
         gl.attachShader(program, fs);
         gl.bindAttribLocation(program, 0, "position");
@@ -107,6 +155,8 @@ function startFluid(canvas: HTMLCanvasElement) {
           throw new Error("Fluid program failed");
         const uniforms = Object.fromEntries(
           [
+            "sourceKind",
+            "outputKind",
             "source",
             "velocity",
             "pressure",
@@ -136,8 +186,17 @@ function startFluid(canvas: HTMLCanvasElement) {
       fbo: WebGLFramebuffer;
       width: number;
       height: number;
+      kind: number;
     };
-    const target = (width: number, height: number): Target => {
+    const clearTarget = (target: Target | null) => {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, target?.fbo ?? null);
+      if (packed && target?.kind === 1)
+        gl.clearColor(128 / 255, 0, 128 / 255, 0);
+      else if (packed && target?.kind === 2) gl.clearColor(128 / 255, 0, 0, 1);
+      else gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    };
+    const target = (width: number, height: number, kind: number): Target => {
       const texture = gl.createTexture()!,
         fbo = gl.createFramebuffer()!;
       textures.push(texture);
@@ -150,12 +209,12 @@ function startFluid(canvas: HTMLCanvasElement) {
       gl.texImage2D(
         gl.TEXTURE_2D,
         0,
-        gl.RGBA16F,
+        packed ? gl.RGBA8 : gl.RGBA16F,
         width,
         height,
         0,
         gl.RGBA,
-        gl.HALF_FLOAT,
+        packed ? gl.UNSIGNED_BYTE : gl.HALF_FLOAT,
         null,
       );
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
@@ -168,13 +227,13 @@ function startFluid(canvas: HTMLCanvasElement) {
       );
       if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE)
         throw new Error("Fluid framebuffer unavailable");
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      return { texture, fbo, width, height };
+      const result = { texture, fbo, width, height, kind };
+      clearTarget(result);
+      return result;
     };
-    const pair = (w: number, h: number) => ({
-      read: target(w, h),
-      write: target(w, h),
+    const pair = (w: number, h: number, kind: number) => ({
+      read: target(w, h, kind),
+      write: target(w, h, kind),
       swap() {
         [this.read, this.write] = [this.write, this.read];
       },
@@ -185,11 +244,11 @@ function startFluid(canvas: HTMLCanvasElement) {
       simH = Math.round(160 / Math.min(1, aspect));
     const dyeW = Math.min(1536, Math.round(640 * Math.max(1, aspect))),
       dyeH = Math.min(1536, Math.round(640 / Math.min(1, aspect)));
-    const velocity = pair(simW, simH),
-      dye = pair(dyeW, dyeH),
-      pressure = pair(simW, simH);
-    const curl = target(simW, simH),
-      divergence = target(simW, simH);
+    const velocity = pair(simW, simH, 1),
+      dye = pair(dyeW, dyeH, 0),
+      pressure = pair(simW, simH, 2);
+    const curl = target(simW, simH, 2),
+      divergence = target(simW, simH, 2);
     const draw = (
       name: string,
       dest: Target | null,
@@ -198,6 +257,8 @@ function startFluid(canvas: HTMLCanvasElement) {
     ) => {
       const pass = passes[name];
       gl.useProgram(pass.program);
+      gl.uniform1i(pass.uniforms.sourceKind, inputs.source?.kind ?? 0);
+      gl.uniform1i(pass.uniforms.outputKind, dest?.kind ?? -1);
       Object.entries(inputs).forEach(([key, input], unit) => {
         gl.activeTexture(gl.TEXTURE0 + unit);
         gl.bindTexture(gl.TEXTURE_2D, input.texture);
@@ -347,8 +408,7 @@ function startFluid(canvas: HTMLCanvasElement) {
       );
       velocity.swap();
       draw("divergence", divergence, { velocity: velocity.read });
-      gl.bindFramebuffer(gl.FRAMEBUFFER, pressure.read.fbo);
-      gl.clear(gl.COLOR_BUFFER_BIT);
+      clearTarget(pressure.read);
       for (let i = 0; i < 18; i++) {
         draw("pressure", pressure.write, {
           pressure: pressure.read,
@@ -371,8 +431,7 @@ function startFluid(canvas: HTMLCanvasElement) {
       draw("display", null, { source: dye.read });
       if (now < activeUntil) frame = requestAnimationFrame(render);
       else {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        clearTarget(null);
       }
     };
     const resize = () => {
@@ -390,11 +449,9 @@ function startFluid(canvas: HTMLCanvasElement) {
       cancelAnimationFrame(frame);
       frame = 0;
       for (const t of [velocity.read, velocity.write, dye.read, dye.write]) {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        clearTarget(t);
       }
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.clear(gl.COLOR_BUFFER_BIT);
+      clearTarget(null);
     };
     const exit = (event: PointerEvent) => {
       if (event.pointerType !== "touch" && !event.relatedTarget) reset();
