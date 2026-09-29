@@ -221,8 +221,7 @@ function startFluid(canvas: HTMLCanvasElement) {
     const reset = () => {
       lastPoint = null;
     };
-    const move = (event: PointerEvent) => {
-      if (event.pointerType === "touch") return;
+    const movePoint = (event: { clientX: number; clientY: number }) => {
       const bounds = canvas.getBoundingClientRect(),
         x = (event.clientX - bounds.left) / bounds.width,
         y = 1 - (event.clientY - bounds.top) / bounds.height;
@@ -255,6 +254,26 @@ function startFluid(canvas: HTMLCanvasElement) {
       }
       lastPoint = { x, y };
     };
+    // Touch events continue during native scrolling, unlike pointermove which
+    // browsers may cancel when a pan starts. Passive listeners keep scrolling free.
+    let touchId: number | null = null;
+    const move = (event: PointerEvent) => {
+      if (event.pointerType !== "touch" && touchId === null) movePoint(event);
+    };
+    const touchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1) { touchId = null; reset(); return; }
+      const touch = event.touches[0];
+      touchId = touch.identifier;
+      reset();
+      movePoint(touch);
+    };
+    const touchMove = (event: TouchEvent) => {
+      if (event.touches.length !== 1) { touchId = null; reset(); return; }
+      const touch = event.touches[0];
+      if (touch.identifier === touchId) movePoint(touch);
+    };
+    const touchEnd = () => { touchId = null; reset(); };
+    const scroll = () => { if (touchId === null) reset(); };
     const render = (now: number) => {
       frame = 0;
       if (stopped || document.hidden) return;
@@ -348,6 +367,7 @@ function startFluid(canvas: HTMLCanvasElement) {
       reset();
     };
     const visibility = () => {
+      touchId = null;
       reset();
       queue.length = 0;
       cancelAnimationFrame(frame);
@@ -360,22 +380,30 @@ function startFluid(canvas: HTMLCanvasElement) {
       gl.clear(gl.COLOR_BUFFER_BIT);
     };
     const exit = (event: PointerEvent) => {
-      if (!event.relatedTarget) reset();
+      if (event.pointerType !== "touch" && !event.relatedTarget) reset();
     };
     resize();
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
     window.addEventListener("pointermove", move, { passive: true });
+    window.addEventListener("touchstart", touchStart, { passive: true });
+    window.addEventListener("touchmove", touchMove, { passive: true });
+    window.addEventListener("touchend", touchEnd, { passive: true });
+    window.addEventListener("touchcancel", touchEnd, { passive: true });
     window.addEventListener("pointerout", exit);
-    window.addEventListener("blur", reset);
-    window.addEventListener("scroll", reset, { passive: true });
+    window.addEventListener("blur", touchEnd);
+    window.addEventListener("scroll", scroll, { passive: true });
     document.addEventListener("visibilitychange", visibility);
     return () => {
       observer.disconnect();
       window.removeEventListener("pointermove", move);
+      window.removeEventListener("touchstart", touchStart);
+      window.removeEventListener("touchmove", touchMove);
+      window.removeEventListener("touchend", touchEnd);
+      window.removeEventListener("touchcancel", touchEnd);
       window.removeEventListener("pointerout", exit);
-      window.removeEventListener("blur", reset);
-      window.removeEventListener("scroll", reset);
+      window.removeEventListener("blur", touchEnd);
+      window.removeEventListener("scroll", scroll);
       document.removeEventListener("visibilitychange", visibility);
       cleanup();
     };
