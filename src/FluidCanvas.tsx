@@ -4,20 +4,23 @@ import { useEffect, useRef } from "react";
 const vertex = `#version 300 es
 in vec2 position; out vec2 uv;
 void main(){uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
+// Explicit sampler precision matters for float textures on ANGLE-backed GPUs.
+// Manual bilinear filtering avoids depending on float-linear driver extensions.
 const header = `#version 300 es
 precision highp float;
+precision highp sampler2D;
 in vec2 uv; out vec4 result;
 uniform sampler2D source, velocity, pressure, curl;
 uniform vec2 texel; uniform float dt;
+vec4 linearSample(sampler2D field,vec2 p){
+  vec2 size=vec2(textureSize(field,0)),cell=p*size-.5,f=fract(cell);
+  vec2 base=(floor(cell)+.5)/size,s=1./size;
+  return mix(mix(texture(field,base),texture(field,base+vec2(s.x,0.)),f.x),
+    mix(texture(field,base+vec2(0.,s.y)),texture(field,base+s),f.x),f.y);
+}
 `;
 const shaders = {
   advect: `uniform float decay;
-    vec4 linearSample(sampler2D field,vec2 p){
-      vec2 size=vec2(textureSize(field,0)),cell=p*size-.5,f=fract(cell);
-      vec2 base=(floor(cell)+.5)/size,s=1./size;
-      return mix(mix(texture(field,base),texture(field,base+vec2(s.x,0.)),f.x),
-        mix(texture(field,base+vec2(0.,s.y)),texture(field,base+s),f.x),f.y);
-    }
     void main(){result=linearSample(source,uv-dt*linearSample(velocity,uv).xy*texel)*exp(-decay*dt);}`,
   splat: `uniform vec2 point,aspect; uniform vec3 amount; uniform float radius;
     void main(){vec2 d=(uv-point)*aspect;result=texture(source,uv)+vec4(amount*exp(-dot(d,d)/radius),0.);}`,
@@ -46,7 +49,7 @@ const shaders = {
     float b=texture(pressure,uv-vec2(0.,texel.y)).x,t=texture(pressure,uv+vec2(0.,texel.y)).x;
     result=vec4(texture(velocity,uv).xy-vec2(r-l,t-b)*.5,0.,0.);}`,
   display: `void main(){
-    vec3 color=1.-exp(-max(texture(source,uv).rgb,0.)*.85);
+    vec3 color=1.-exp(-max(linearSample(source,uv).rgb,0.)*.85);
     float strength=max(color.r,max(color.g,color.b));
     result=vec4(color*.68,strength*.68);}`,
 };
