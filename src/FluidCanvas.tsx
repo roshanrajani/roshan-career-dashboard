@@ -499,9 +499,10 @@ export function FluidCanvas() {
       dispose();
       dispose = () => {};
       if (!motion.matches) {
-        // Use the same WebGL effect on every OS. Keep an explicit compatibility
-        // override available for troubleshooting individual graphics drivers.
+        // Windows uses Canvas 2D to avoid the reported WebGL corruption.
+        // Other platforms retain the existing WebGL effect.
         const compatible =
+          /Windows/i.test(navigator.userAgent) ||
           new URLSearchParams(location.search).get("fluid") === "cpu";
         dispose = compatible ? startCpuFluid(element) : startFluid(element);
       }
