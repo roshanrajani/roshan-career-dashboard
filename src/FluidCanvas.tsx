@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { startCpuFluid } from "./cpuFluid";
 
 // Persistent velocity, pressure and ink fields: a GPU fluid solver.
 const vertex = `#version 300 es
@@ -264,19 +265,32 @@ function startFluid(canvas: HTMLCanvasElement) {
       if (event.pointerType !== "touch" && touchId === null) movePoint(event);
     };
     const touchStart = (event: TouchEvent) => {
-      if (event.touches.length !== 1) { touchId = null; reset(); return; }
+      if (event.touches.length !== 1) {
+        touchId = null;
+        reset();
+        return;
+      }
       const touch = event.touches[0];
       touchId = touch.identifier;
       reset();
       movePoint(touch);
     };
     const touchMove = (event: TouchEvent) => {
-      if (event.touches.length !== 1) { touchId = null; reset(); return; }
+      if (event.touches.length !== 1) {
+        touchId = null;
+        reset();
+        return;
+      }
       const touch = event.touches[0];
       if (touch.identifier === touchId) movePoint(touch);
     };
-    const touchEnd = () => { touchId = null; reset(); };
-    const scroll = () => { if (touchId === null) reset(); };
+    const touchEnd = () => {
+      touchId = null;
+      reset();
+    };
+    const scroll = () => {
+      if (touchId === null) reset();
+    };
     const render = (now: number) => {
       frame = 0;
       if (stopped || document.hidden) return;
@@ -427,7 +441,14 @@ export function FluidCanvas() {
     const setup = () => {
       dispose();
       dispose = () => {};
-      if (!motion.matches) dispose = startFluid(element);
+      if (!motion.matches) {
+        // Avoid the float-texture path on Windows drivers showing corruption.
+        // Query override allows testing exactly that renderer on other systems.
+        const compatible =
+          /Windows/i.test(navigator.userAgent) ||
+          new URLSearchParams(location.search).get("fluid") === "cpu";
+        dispose = compatible ? startCpuFluid(element) : startFluid(element);
+      }
     };
     setup();
     motion.addEventListener("change", setup);
