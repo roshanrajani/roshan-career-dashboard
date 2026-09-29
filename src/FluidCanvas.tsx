@@ -1,237 +1,409 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from "react";
 
-const vertexShader = `
-  attribute vec2 a_position;
-  varying vec2 v_uv;
-
-  void main() {
-    v_uv = a_position * .5 + .5;
-    gl_Position = vec4(a_position, 0.0, 1.0);
-  }
+// Persistent velocity, pressure and ink fields: a GPU fluid solver.
+const vertex = `#version 300 es
+in vec2 position; out vec2 uv;
+void main(){uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
+const header = `#version 300 es
+precision highp float;
+in vec2 uv; out vec4 result;
+uniform sampler2D source, velocity, pressure, curl;
+uniform vec2 texel; uniform float dt;
 `;
+const shaders = {
+  advect: `uniform float decay;
+    vec4 linearSample(sampler2D field,vec2 p){
+      vec2 size=vec2(textureSize(field,0)),cell=p*size-.5,f=fract(cell);
+      vec2 base=(floor(cell)+.5)/size,s=1./size;
+      return mix(mix(texture(field,base),texture(field,base+vec2(s.x,0.)),f.x),
+        mix(texture(field,base+vec2(0.,s.y)),texture(field,base+s),f.x),f.y);
+    }
+    void main(){result=linearSample(source,uv-dt*linearSample(velocity,uv).xy*texel)*exp(-decay*dt);}`,
+  splat: `uniform vec2 point,aspect; uniform vec3 amount; uniform float radius;
+    void main(){vec2 d=(uv-point)*aspect;result=texture(source,uv)+vec4(amount*exp(-dot(d,d)/radius),0.);}`,
+  curl: `void main(){
+    float l=texture(velocity,uv-vec2(texel.x,0.)).y,r=texture(velocity,uv+vec2(texel.x,0.)).y;
+    float b=texture(velocity,uv-vec2(0.,texel.y)).x,t=texture(velocity,uv+vec2(0.,texel.y)).x;
+    result=vec4(.5*(r-l-t+b),0.,0.,0.);}`,
+  vorticity: `void main(){
+    float l=abs(texture(curl,uv-vec2(texel.x,0.)).x),r=abs(texture(curl,uv+vec2(texel.x,0.)).x);
+    float b=abs(texture(curl,uv-vec2(0.,texel.y)).x),t=abs(texture(curl,uv+vec2(0.,texel.y)).x);
+    vec2 force=.5*vec2(t-b,l-r);force/=length(force)+.0001;force*=18.*texture(curl,uv).x;
+    result=vec4(clamp(texture(velocity,uv).xy+dt*force,-600.,600.),0.,0.);}`,
+  divergence: `void main(){
+    vec2 c=texture(velocity,uv).xy;
+    float l=texture(velocity,uv-vec2(texel.x,0.)).x,r=texture(velocity,uv+vec2(texel.x,0.)).x;
+    float b=texture(velocity,uv-vec2(0.,texel.y)).y,t=texture(velocity,uv+vec2(0.,texel.y)).y;
+    if(uv.x<texel.x)l=-c.x;if(uv.x>1.-texel.x)r=-c.x;
+    if(uv.y<texel.y)b=-c.y;if(uv.y>1.-texel.y)t=-c.y;
+    result=vec4(.5*(r-l+t-b),0.,0.,0.);}`,
+  pressure: `void main(){
+    float l=texture(pressure,uv-vec2(texel.x,0.)).x,r=texture(pressure,uv+vec2(texel.x,0.)).x;
+    float b=texture(pressure,uv-vec2(0.,texel.y)).x,t=texture(pressure,uv+vec2(0.,texel.y)).x;
+    result=vec4((l+r+b+t-texture(source,uv).x)*.25,0.,0.,0.);}`,
+  project: `void main(){
+    float l=texture(pressure,uv-vec2(texel.x,0.)).x,r=texture(pressure,uv+vec2(texel.x,0.)).x;
+    float b=texture(pressure,uv-vec2(0.,texel.y)).x,t=texture(pressure,uv+vec2(0.,texel.y)).x;
+    result=vec4(texture(velocity,uv).xy-vec2(r-l,t-b)*.5,0.,0.);}`,
+  display: `void main(){
+    vec3 color=1.-exp(-max(texture(source,uv).rgb,0.)*.85);
+    float strength=max(color.r,max(color.g,color.b));
+    result=vec4(color*.68,strength*.68);}`,
+};
 
-const fragmentShader = `
-  precision highp float;
-
-  uniform float u_time;
-  uniform float u_aspect;
-  uniform float u_pointerActive;
-  uniform float u_pointerSpeed;
-  uniform vec3 u_theme;
-  uniform vec2 u_pointer;
-  uniform vec4 u_trail[8];
-  varying vec2 v_uv;
-
-  float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
-  }
-
-  float noise(vec2 p) {
-    vec2 cell = floor(p);
-    vec2 local = fract(p);
-    local = local * local * (3.0 - 2.0 * local);
-    return mix(
-      mix(hash(cell), hash(cell + vec2(1.0, 0.0)), local.x),
-      mix(hash(cell + vec2(0.0, 1.0)), hash(cell + vec2(1.0, 1.0)), local.x),
-      local.y
+function startFluid(canvas: HTMLCanvasElement) {
+  const gl = canvas.getContext("webgl2", {
+    alpha: true,
+    antialias: false,
+    depth: false,
+  });
+  if (!gl || !gl.getExtension("EXT_color_buffer_float")) return () => {};
+  const programs: WebGLProgram[] = [],
+    textures: WebGLTexture[] = [],
+    framebuffers: WebGLFramebuffer[] = [];
+  let frame = 0,
+    stopped = false;
+  const buffer = gl.createBuffer();
+  const cleanup = () => {
+    stopped = true;
+    cancelAnimationFrame(frame);
+    programs.forEach((p) => gl.deleteProgram(p));
+    textures.forEach((t) => gl.deleteTexture(t));
+    framebuffers.forEach((f) => gl.deleteFramebuffer(f));
+    gl.deleteBuffer(buffer);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+  };
+  try {
+    const compile = (type: number, text: string) => {
+      const shader = gl.createShader(type)!;
+      gl.shaderSource(shader, text);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const message = gl.getShaderInfoLog(shader);
+        gl.deleteShader(shader);
+        throw new Error(message || "Fluid shader failed");
+      }
+      return shader;
+    };
+    const passes = Object.fromEntries(
+      Object.entries(shaders).map(([name, fragment]) => {
+        const program = gl.createProgram()!;
+        programs.push(program);
+        const vs = compile(gl.VERTEX_SHADER, vertex),
+          fs = compile(gl.FRAGMENT_SHADER, header + fragment);
+        gl.attachShader(program, vs);
+        gl.attachShader(program, fs);
+        gl.bindAttribLocation(program, 0, "position");
+        gl.linkProgram(program);
+        gl.deleteShader(vs);
+        gl.deleteShader(fs);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS))
+          throw new Error("Fluid program failed");
+        const uniforms = Object.fromEntries(
+          [
+            "source",
+            "velocity",
+            "pressure",
+            "curl",
+            "texel",
+            "dt",
+            "decay",
+            "point",
+            "aspect",
+            "amount",
+            "radius",
+          ].map((key) => [key, gl.getUniformLocation(program, key)]),
+        );
+        return [name, { program, uniforms }];
+      }),
     );
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+      gl.STATIC_DRAW,
+    );
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    type Target = {
+      texture: WebGLTexture;
+      fbo: WebGLFramebuffer;
+      width: number;
+      height: number;
+    };
+    const target = (width: number, height: number): Target => {
+      const texture = gl.createTexture()!,
+        fbo = gl.createFramebuffer()!;
+      textures.push(texture);
+      framebuffers.push(fbo);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA16F,
+        width,
+        height,
+        0,
+        gl.RGBA,
+        gl.HALF_FLOAT,
+        null,
+      );
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.framebufferTexture2D(
+        gl.FRAMEBUFFER,
+        gl.COLOR_ATTACHMENT0,
+        gl.TEXTURE_2D,
+        texture,
+        0,
+      );
+      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE)
+        throw new Error("Fluid framebuffer unavailable");
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      return { texture, fbo, width, height };
+    };
+    const pair = (w: number, h: number) => ({
+      read: target(w, h),
+      write: target(w, h),
+      swap() {
+        [this.read, this.write] = [this.write, this.read];
+      },
+    });
+    const rect = canvas.getBoundingClientRect();
+    let aspect = rect.width / Math.max(rect.height, 1);
+    const simW = Math.round(160 * Math.max(1, aspect)),
+      simH = Math.round(160 / Math.min(1, aspect));
+    const dyeW = Math.min(1536, Math.round(640 * Math.max(1, aspect))),
+      dyeH = Math.min(1536, Math.round(640 / Math.min(1, aspect)));
+    const velocity = pair(simW, simH),
+      dye = pair(dyeW, dyeH),
+      pressure = pair(simW, simH);
+    const curl = target(simW, simH),
+      divergence = target(simW, simH);
+    const draw = (
+      name: string,
+      dest: Target | null,
+      inputs: Record<string, Target>,
+      values: Record<string, number | number[]> = {},
+    ) => {
+      const pass = passes[name];
+      gl.useProgram(pass.program);
+      Object.entries(inputs).forEach(([key, input], unit) => {
+        gl.activeTexture(gl.TEXTURE0 + unit);
+        gl.bindTexture(gl.TEXTURE_2D, input.texture);
+        gl.uniform1i(pass.uniforms[key], unit);
+      });
+      gl.uniform2f(pass.uniforms.texel, 1 / simW, 1 / simH);
+      Object.entries(values).forEach(([key, value]) => {
+        if (typeof value === "number") gl.uniform1f(pass.uniforms[key], value);
+        else if (value.length === 2) gl.uniform2fv(pass.uniforms[key], value);
+        else gl.uniform3fv(pass.uniforms[key], value);
+      });
+      gl.bindFramebuffer(gl.FRAMEBUFFER, dest?.fbo ?? null);
+      gl.viewport(
+        0,
+        0,
+        dest?.width ?? canvas.width,
+        dest?.height ?? canvas.height,
+      );
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    };
+    let lastPoint: { x: number; y: number } | null = null;
+    const queue: Array<{ x: number; y: number; dx: number; dy: number }> = [];
+    let activeUntil = 0,
+      lastTime = 0;
+    const reset = () => {
+      lastPoint = null;
+    };
+    const move = (event: PointerEvent) => {
+      if (event.pointerType === "touch") return;
+      const bounds = canvas.getBoundingClientRect(),
+        x = (event.clientX - bounds.left) / bounds.width,
+        y = 1 - (event.clientY - bounds.top) / bounds.height;
+      if (x < 0 || x > 1 || y < 0 || y > 1) {
+        reset();
+        return;
+      }
+      if (lastPoint) {
+        const dx = x - lastPoint.x,
+          dy = y - lastPoint.y;
+        if (Math.hypot(dx, dy) > 0.0002) {
+          const count = Math.min(
+            8,
+            Math.ceil(Math.hypot(dx * aspect, dy) / 0.018),
+          );
+          for (let i = 1; i <= count; i++)
+            queue.push({
+              x: lastPoint.x + (dx * i) / count,
+              y: lastPoint.y + (dy * i) / count,
+              dx: dx / count,
+              dy: dy / count,
+            });
+          if (queue.length > 32) queue.splice(0, queue.length - 32);
+          activeUntil = performance.now() + 6000;
+          if (!frame) {
+            lastTime = performance.now();
+            frame = requestAnimationFrame(render);
+          }
+        }
+      }
+      lastPoint = { x, y };
+    };
+    const render = (now: number) => {
+      frame = 0;
+      if (stopped || document.hidden) return;
+      const dt = Math.min((now - lastTime) / 1000, 1 / 30);
+      lastTime = now;
+      for (const point of queue.splice(0)) {
+        const hue = now * 0.00012 + 0.25 + point.x * 0.22;
+        const color = [0, 0.33, 0.67].map(
+          (shift) =>
+            0.12 +
+            1.5 *
+              Math.pow(0.5 + 0.5 * Math.cos((hue - shift) * Math.PI * 2), 3),
+        );
+        const params = {
+          point: [point.x, point.y],
+          aspect: [aspect, 1],
+          radius: 0.00032,
+        };
+        draw(
+          "splat",
+          velocity.write,
+          { source: velocity.read },
+          {
+            ...params,
+            amount: [
+              Math.max(-180, Math.min(180, point.dx * simW * 18)),
+              Math.max(-180, Math.min(180, point.dy * simH * 18)),
+              0,
+            ],
+          },
+        );
+        velocity.swap();
+        draw(
+          "splat",
+          dye.write,
+          { source: dye.read },
+          { ...params, amount: color },
+        );
+        dye.swap();
+      }
+      draw(
+        "advect",
+        velocity.write,
+        { source: velocity.read, velocity: velocity.read },
+        { dt, decay: 1.2 },
+      );
+      velocity.swap();
+      draw("curl", curl, { velocity: velocity.read });
+      draw(
+        "vorticity",
+        velocity.write,
+        { velocity: velocity.read, curl },
+        { dt },
+      );
+      velocity.swap();
+      draw("divergence", divergence, { velocity: velocity.read });
+      gl.bindFramebuffer(gl.FRAMEBUFFER, pressure.read.fbo);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      for (let i = 0; i < 18; i++) {
+        draw("pressure", pressure.write, {
+          pressure: pressure.read,
+          source: divergence,
+        });
+        pressure.swap();
+      }
+      draw("project", velocity.write, {
+        velocity: velocity.read,
+        pressure: pressure.read,
+      });
+      velocity.swap();
+      draw(
+        "advect",
+        dye.write,
+        { source: dye.read, velocity: velocity.read },
+        { dt, decay: 1.1 },
+      );
+      dye.swap();
+      draw("display", null, { source: dye.read });
+      if (now < activeUntil) frame = requestAnimationFrame(render);
+      else {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+      }
+    };
+    const resize = () => {
+      const bounds = canvas.getBoundingClientRect(),
+        dpr = Math.min(devicePixelRatio || 1, 1.5);
+      aspect = bounds.width / Math.max(bounds.height, 1);
+      canvas.width = Math.max(1, Math.round(bounds.width * dpr));
+      canvas.height = Math.max(1, Math.round(bounds.height * dpr));
+      reset();
+    };
+    const visibility = () => {
+      reset();
+      queue.length = 0;
+      cancelAnimationFrame(frame);
+      frame = 0;
+      for (const t of [velocity.read, velocity.write, dye.read, dye.write]) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+      }
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    };
+    const exit = (event: PointerEvent) => {
+      if (!event.relatedTarget) reset();
+    };
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
+    window.addEventListener("pointermove", move, { passive: true });
+    window.addEventListener("pointerout", exit);
+    window.addEventListener("blur", reset);
+    window.addEventListener("scroll", reset, { passive: true });
+    document.addEventListener("visibilitychange", visibility);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerout", exit);
+      window.removeEventListener("blur", reset);
+      window.removeEventListener("scroll", reset);
+      document.removeEventListener("visibilitychange", visibility);
+      cleanup();
+    };
+  } catch (error) {
+    console.warn("Fluid effect unavailable:", error);
+    cleanup();
+    return () => {};
   }
-
-  float fbm(vec2 p) {
-    float value = 0.0;
-    float amplitude = .5;
-    for (int octave = 0; octave < 4; octave++) {
-      value += amplitude * noise(p);
-      p = p * 2.03 + 17.17;
-      amplitude *= .5;
-    }
-    return value;
-  }
-
-  void main() {
-    float time = u_time;
-    vec2 position = (v_uv - .5) * vec2(u_aspect, 1.0);
-    vec2 pointer = (u_pointer - .5) * vec2(u_aspect, 1.0);
-    float distanceToPointer = length(position - pointer);
-    float pointerField = smoothstep(.3, .015, distanceToPointer) * u_pointerActive;
-    float trailField = 0.0;
-    for (int index = 0; index < 8; index++) {
-      float trailDistance = distance(position, u_trail[index].xy);
-      trailField = max(trailField, smoothstep(.24, .01, trailDistance) * u_trail[index].z);
-    }
-    pointerField = max(pointerField, trailField);
-
-    vec2 flow = vec2(
-      fbm(position * 1.45 + vec2(time * .055, -time * .035)),
-      fbm(position * 1.6 + vec2(-time * .045, time * .06) + 9.0)
-    ) - .5;
-    vec2 warped = position + flow * .16;
-    warped += vec2(
-      sin(position.y * 4.5 + time * .42),
-      cos(position.x * 3.7 - time * .36)
-    ) * (.018 + pointerField * .025);
-
-    float surface = fbm(warped * 2.5 + flow * .9 + time * .025);
-    float detail = fbm(warped * 6.0 - flow * 1.2 - time * .018);
-    float caustic = pow(max(0.0, sin((surface + detail) * 8.0 + time * .55)), 6.0);
-    float shimmer = pow(max(0.0, sin(detail * 12.0 + surface * 7.0 - time * .35)), 8.0);
-    float crest = pow(max(0.0, sin((surface + detail) * 10.0 - time * .4)), 12.0);
-
-    vec3 deep = vec3(.008, .022, .055);
-    vec3 water = mix(vec3(.015, .22, .34), u_theme, .65);
-    vec3 cyan = mix(vec3(.08, .78, .92), u_theme, .5);
-    vec3 blue = mix(vec3(.08, .38, .98), u_theme, .34);
-    vec3 color = deep;
-    color += (water - deep) * smoothstep(.28, .85, surface) * pointerField * .78;
-    color += cyan * (caustic * .19 + shimmer * .08 + crest * .12) * pointerField;
-    color += mix(blue, cyan, pointerField) * (pointerField * (.18 + u_pointerSpeed * .28));
-    color += vec3(.6, .92, 1.0) * pow(pointerField, 2.2) * (.08 + u_pointerSpeed * .2);
-
-    float vignette = 1.0 - smoothstep(.45, 1.2, length(position * vec2(.72, 1.0)));
-    color *= .72 + vignette * .28;
-    gl_FragColor = vec4(color, .94);
-  }
-`;
-
-function compileShader(gl: WebGLRenderingContext, type: number, source: string) {
-  const shader = gl.createShader(type);
-  if (!shader) return null;
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    gl.deleteShader(shader);
-    return null;
-  }
-  return shader;
 }
 
 export function FluidCanvas() {
   const canvas = useRef<HTMLCanvasElement>(null);
-
   useEffect(() => {
     const element = canvas.current;
     if (!element) return;
-    const gl = element.getContext('webgl', { alpha: true, antialias: false, powerPreference: 'high-performance' });
-    if (!gl) return;
-
-    const vertex = compileShader(gl, gl.VERTEX_SHADER, vertexShader);
-    const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShader);
-    if (!vertex || !fragment) return;
-    const program = gl.createProgram();
-    if (!program) return;
-    gl.attachShader(program, vertex);
-    gl.attachShader(program, fragment);
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return;
-
-    const position = gl.getAttribLocation(program, 'a_position');
-    const time = gl.getUniformLocation(program, 'u_time');
-    const aspect = gl.getUniformLocation(program, 'u_aspect');
-    const pointerActive = gl.getUniformLocation(program, 'u_pointerActive');
-    const pointerSpeed = gl.getUniformLocation(program, 'u_pointerSpeed');
-    const themeTint = gl.getUniformLocation(program, 'u_theme');
-    const pointer = gl.getUniformLocation(program, 'u_pointer');
-    const trailUniform = gl.getUniformLocation(program, 'u_trail[0]');
-    const buffer = gl.createBuffer();
-    if (!buffer) return;
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-    gl.useProgram(program);
-    gl.enableVertexAttribArray(position);
-    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const cursor = { x: .5, y: .5, active: 0, speed: 0, lastX: -1, lastY: -1 };
-    const trail: Array<{ x: number; y: number; life: number }> = [];
-    const theme = document.documentElement.dataset.theme;
-    const tint = theme === 'orange' ? [1, .42, .16] : theme === 'blue' ? [.22, .78, 1] : [.68, .98, .35];
-    let width = 0;
-    let height = 0;
-    let frame = 0;
-    let last = performance.now();
-
-    const resize = () => {
-      const rect = element.getBoundingClientRect();
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
-      width = rect.width;
-      height = rect.height;
-      element.width = Math.max(1, Math.floor(width * ratio));
-      element.height = Math.max(1, Math.floor(height * ratio));
-      gl.viewport(0, 0, element.width, element.height);
+    const motion = matchMedia("(prefers-reduced-motion: reduce)");
+    let dispose = () => {};
+    const setup = () => {
+      dispose();
+      dispose = () => {};
+      if (!motion.matches) dispose = startFluid(element);
     };
-    const move = (event: PointerEvent) => {
-      const rect = element.getBoundingClientRect();
-      const inside = event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
-      if (!inside) {
-        cursor.active = 0;
-        cursor.speed = 0;
-        cursor.lastX = -1;
-        cursor.lastY = -1;
-        return;
-      }
-      const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / Math.max(rect.width, 1)));
-      const y = Math.max(0, Math.min(1, 1 - (event.clientY - rect.top) / Math.max(rect.height, 1)));
-      if (cursor.lastX >= 0) cursor.speed = Math.min(1, Math.hypot(x - cursor.lastX, y - cursor.lastY) * 8);
-      if (cursor.lastX >= 0 && Math.hypot(x - cursor.lastX, y - cursor.lastY) > .008) {
-        trail.unshift({ x, y, life: 1 });
-        if (trail.length > 8) trail.pop();
-      }
-      cursor.x = x;
-      cursor.y = y;
-      cursor.lastX = x;
-      cursor.lastY = y;
-      cursor.active = 1;
-    };
-    const leave = () => {
-      cursor.active = 0;
-      cursor.speed = 0;
-      cursor.lastX = -1;
-      cursor.lastY = -1;
-    };
-    const render = (now: number) => {
-      const elapsed = Math.min(50, now - last);
-      last = now;
-      cursor.speed *= reduced ? 0 : Math.pow(.88, elapsed / 16.67);
-      cursor.active = Math.max(0, cursor.active - (reduced ? 1 : elapsed * .0012));
-      trail.forEach((point) => { point.life *= reduced ? 0 : Math.pow(.9, elapsed / 16.67); });
-      for (let index = trail.length - 1; index >= 0; index -= 1) if (trail[index].life < .035) trail.splice(index, 1);
-      const packedTrail = new Float32Array(32);
-      trail.forEach((point, index) => {
-        packedTrail[index * 4] = point.x;
-        packedTrail[index * 4 + 1] = point.y;
-        packedTrail[index * 4 + 2] = point.life;
-      });
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.uniform1f(time, reduced ? 0 : now * .001);
-      gl.uniform1f(aspect, width / Math.max(height, 1));
-      gl.uniform1f(pointerActive, cursor.active);
-      gl.uniform1f(pointerSpeed, cursor.speed);
-      gl.uniform3f(themeTint, tint[0], tint[1], tint[2]);
-      gl.uniform2f(pointer, cursor.x, cursor.y);
-      gl.uniform4fv(trailUniform, packedTrail);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      if (!reduced) frame = requestAnimationFrame(render);
-    };
-
-    resize();
-    const observer = new ResizeObserver(resize);
-    observer.observe(element);
-    window.addEventListener('pointermove', move, { passive: true });
-    window.addEventListener('pointerleave', leave);
-    if (reduced) render(performance.now());
-    else frame = requestAnimationFrame(render);
+    setup();
+    motion.addEventListener("change", setup);
     return () => {
-      observer.disconnect();
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerleave', leave);
-      cancelAnimationFrame(frame);
-      gl.deleteBuffer(buffer);
-      gl.deleteProgram(program);
-      gl.deleteShader(vertex);
-      gl.deleteShader(fragment);
+      dispose();
+      motion.removeEventListener("change", setup);
     };
   }, []);
-
   return <canvas ref={canvas} className="fluid-canvas" aria-hidden="true" />;
 }

@@ -1,42 +1,16 @@
-/* Shared palette for every component, including responsive layouts. */
+/* White surfaces with neon accents and readable foregrounds. */
 :root {
+  color-scheme: light;
   --accent: #d7fb79;
+  --accent-ink: #4b6815;
   --on-accent: #18220e;
-  --bg: #090c0b;
-  --surface: #111713;
-  --raised: #19231b;
-  --border: #3d4c32;
-  --subtle: #70825e;
-  --muted: #a0ae92;
-  --secondary: #c1cdb4;
-  --text: #e2ead9;
-  --bright: #f2f5ec;
-}
-
-:root[data-theme="blue"] {
-  --accent: #68d8ff;
-  --on-accent: #10243b;
-  --bg: #080d17;
-  --surface: #111b2a;
-  --raised: #192b40;
-  --border: #3b5673;
-  --subtle: #6c8dad;
-  --muted: #9db4cd;
-  --secondary: #bed1e5;
-  --text: #e0ebf6;
-  --bright: #f0f7ff;
-}
-
-:root[data-theme="orange"] {
-  --accent: #ff9d5c;
-  --on-accent: #351c10;
-  --bg: #120d0b;
-  --surface: #211712;
-  --raised: #302017;
-  --border: #664936;
-  --subtle: #a58064;
-  --muted: #c5a58d;
-  --secondary: #dfc4af;
-  --text: #f0e1d5;
-  --bright: #fff5ed;
+  --bg: #ffffff;
+  --surface: #f6f7f5;
+  --raised: #edf0e9;
+  --border: #d5dacf;
+  --subtle: #68735e;
+  --muted: #596151;
+  --secondary: #3d4537;
+  --text: #20261d;
+  --bright: #10150e;
 }
