@@ -253,7 +253,7 @@ dialog::backdrop { background: #000a; backdrop-filter: blur(9px); }
   .projects-section { padding-top: 45px; }
   .project-art { height: 300px; }
   .design-art { max-width: 320px; }
-.project-link { flex-direction: column; align-items: flex-start; font-size: 22px; }
+.project-link { flex-direction: column; align-items: flex-start; justify-content: flex-start; font-size: 22px; }
 .project-link::after { content: 'View details'; display: inline-flex; align-self: flex-end; margin-top: 14px; margin-left: auto; padding: 9px 13px; border: 1px solid var(--accent-ink); border-radius: 999px; color: var(--accent-ink); font: 600 11px/1.2 monospace; letter-spacing: .08em; text-transform: uppercase; }
 .project-link > svg { display: none; }
   .page-heading { padding: 45px 0 20px; }
@@ -277,6 +277,9 @@ dialog::backdrop { background: #000a; backdrop-filter: blur(9px); }
   nav button { justify-content: center; min-height: 40px; }
 }
 @media(prefers-reduced-motion:reduce) { *, *:before, *:after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+
+/* Keep project titles and their detail controls compact at every breakpoint. */
+.project-link { flex-direction: column; align-items: flex-start; justify-content: flex-start; }
 
 /* Quiet profile shortcut, available on every page and screen size. */
 .overview-grid { grid-template-columns: 1fr; gap: 60px; }
