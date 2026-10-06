@@ -254,7 +254,7 @@ dialog::backdrop { background: #000a; backdrop-filter: blur(9px); }
   .project-art { height: 300px; }
   .design-art { max-width: 320px; }
 .project-link { flex-direction: column; align-items: flex-start; font-size: 22px; }
-.project-link::after { content: 'View details'; display: inline-flex; margin-top: 14px; padding: 9px 13px; border: 1px solid var(--accent-ink); border-radius: 999px; color: var(--accent-ink); font: 600 11px/1.2 monospace; letter-spacing: .08em; text-transform: uppercase; }
+.project-link::after { content: 'View details'; display: inline-flex; align-self: flex-end; margin-top: 14px; padding: 9px 13px; border: 1px solid var(--accent-ink); border-radius: 999px; color: var(--accent-ink); font: 600 11px/1.2 monospace; letter-spacing: .08em; text-transform: uppercase; }
 .project-link > svg { display: none; }
   .page-heading { padding: 45px 0 20px; }
   .page-heading h1 { font-size: 43px; letter-spacing: -2px; }
