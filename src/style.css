@@ -253,7 +253,7 @@ dialog::backdrop { background: #000a; backdrop-filter: blur(9px); }
   .projects-section { padding-top: 45px; }
   .project-art { height: 300px; }
   .design-art { max-width: 320px; }
-.project-link { font-size: 22px; }
+.project-link { flex-direction: column; align-items: flex-start; font-size: 22px; }
 .project-link::after { content: 'View details'; display: block; margin-top: 10px; color: var(--accent-ink); font: 600 11px/1.2 monospace; letter-spacing: .08em; text-transform: uppercase; }
 .project-link > svg { display: none; }
   .page-heading { padding: 45px 0 20px; }
