@@ -240,7 +240,7 @@ function startFluid(canvas: HTMLCanvasElement) {
     });
     const rect = canvas.getBoundingClientRect();
     let aspect = rect.width / Math.max(rect.height, 1);
-    const simW = Math.round(160 * Math.max(1, aspect)),
+    let simW = Math.round(160 * Math.max(1, aspect)),
       simH = Math.round(160 / Math.min(1, aspect));
     const dyeW = Math.min(1536, Math.round(640 * Math.max(1, aspect))),
       dyeH = Math.min(1536, Math.round(640 / Math.min(1, aspect)));
@@ -335,6 +335,14 @@ function startFluid(canvas: HTMLCanvasElement) {
       touchId = touch.identifier;
       reset();
       movePoint(touch);
+      if (lastPoint) {
+        queue.push({ ...lastPoint, dx: 0, dy: 0 });
+        activeUntil = performance.now() + 6000;
+        if (!frame) {
+          lastTime = performance.now();
+          frame = requestAnimationFrame(render);
+        }
+      }
     };
     const touchMove = (event: TouchEvent) => {
       if (event.touches.length !== 1) {
@@ -438,8 +446,33 @@ function startFluid(canvas: HTMLCanvasElement) {
       const bounds = canvas.getBoundingClientRect(),
         dpr = Math.min(devicePixelRatio || 1, 1.5);
       aspect = bounds.width / Math.max(bounds.height, 1);
-      canvas.width = Math.max(1, Math.round(bounds.width * dpr));
-      canvas.height = Math.max(1, Math.round(bounds.height * dpr));
+      const width = Math.max(1, Math.round(bounds.width * dpr));
+      const height = Math.max(1, Math.round(bounds.height * dpr));
+      if (canvas.width === width && canvas.height === height) return;
+      canvas.width = width;
+      canvas.height = height;
+      const nextW = Math.round(160 * Math.max(1, aspect));
+      const nextH = Math.round(160 / Math.min(1, aspect));
+      if (nextW !== simW || nextH !== simH) {
+        simW = nextW;
+        simH = nextH;
+        // Resize both axes together so the dye texture keeps square cells,
+        // including when a desktop viewport becomes a narrow mobile viewport.
+        const dyeScale = Math.min(640, 1536 / Math.max(aspect, 1 / aspect));
+        for (const field of [velocity.read, velocity.write, pressure.read,
+          pressure.write, curl, divergence, dye.read, dye.write]) {
+          field.width = field.kind === 0 ? Math.round(dyeScale * Math.max(1, aspect)) : simW;
+          field.height = field.kind === 0 ? Math.round(dyeScale / Math.min(1, aspect)) : simH;
+          gl.bindTexture(gl.TEXTURE_2D, field.texture);
+          gl.texImage2D(gl.TEXTURE_2D, 0, packed ? gl.RGBA8 : gl.RGBA16F,
+            field.width, field.height, 0, gl.RGBA,
+            packed ? gl.UNSIGNED_BYTE : gl.HALF_FLOAT, null);
+          clearTarget(field);
+        }
+        queue.length = 0;
+      }
+      // Mobile browser chrome resizes the viewport during a swipe. Keep the
+      // active finger, but rebase its next sample to avoid a jump in velocity.
       reset();
     };
     const visibility = () => {

@@ -40,8 +40,11 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
   const resize = () => {
     const rect = canvas.getBoundingClientRect();
     const ratio = Math.min(devicePixelRatio || 1, 1.5);
-    canvas.width = Math.max(1, Math.round(rect.width * ratio));
-    canvas.height = Math.max(1, Math.round(rect.height * ratio));
+    const width = Math.max(1, Math.round(rect.width * ratio));
+    const height = Math.max(1, Math.round(rect.height * ratio));
+    if (w && canvas.width === width && canvas.height === height) return;
+    canvas.width = width;
+    canvas.height = height;
     const scale = 300 / Math.max(rect.width, rect.height, 1);
     w = Math.max(32, Math.round(rect.width * scale));
     h = Math.max(32, Math.round(rect.height * scale));
@@ -205,7 +208,7 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
     if (now < until) frame = requestAnimationFrame(render);
     else clear();
   };
-  const movePoint = (point: { clientX: number; clientY: number }) => {
+  const movePoint = (point: { clientX: number; clientY: number }, deposit = false) => {
     const bounds = canvas.getBoundingClientRect();
     const x = ((point.clientX - bounds.left) / bounds.width) * (w - 1),
       y = ((point.clientY - bounds.top) / bounds.height) * (h - 1);
@@ -213,12 +216,13 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
       reset();
       return;
     }
+    if (deposit && !last) last = { x, y };
     if (last) {
       const dx = x - last.x,
         dy = y - last.y,
         length = Math.hypot(dx, dy);
-      if (length > 0.02) {
-        const steps = Math.min(24, Math.ceil(length)),
+      if (deposit || length > 0.02) {
+        const steps = Math.max(1, Math.min(24, Math.ceil(length))),
           radius = 2.8;
         const hue = performance.now() * 0.00007 + 0.25 + (x / w) * 0.22;
         const color = [0, 0.33, 0.67].map(
@@ -265,7 +269,7 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
   const start = (e: TouchEvent) => {
     reset();
     touchId = e.touches.length === 1 ? e.touches[0].identifier : null;
-    if (touchId !== null) movePoint(e.touches[0]);
+    if (touchId !== null) movePoint(e.touches[0], true);
   };
   const touchMove = (e: TouchEvent) => {
     if (e.touches.length === 1 && e.touches[0].identifier === touchId)
