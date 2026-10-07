@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { startCpuFluid } from "./cpuFluid";
+import { useEffect, useRef } from 'react';
+import { startCpuFluid } from './cpuFluid';
 
 // Persistent velocity, pressure and ink fields: a GPU fluid solver.
 const vertex = `#version 300 es
@@ -85,7 +85,7 @@ const shaders = {
 };
 
 function startFluid(canvas: HTMLCanvasElement) {
-  const gl = canvas.getContext("webgl2", {
+  const gl = canvas.getContext('webgl2', {
     alpha: true,
     antialias: false,
     depth: false,
@@ -93,8 +93,8 @@ function startFluid(canvas: HTMLCanvasElement) {
   if (!gl) return () => {};
   const packed =
     /Windows/i.test(navigator.userAgent) ||
-    new URLSearchParams(location.search).get("fluid") === "packed" ||
-    !gl.getExtension("EXT_color_buffer_float");
+    new URLSearchParams(location.search).get('fluid') === 'packed' ||
+    !gl.getExtension('EXT_color_buffer_float');
   // Dithering must be off: each byte stores data, not a display color.
   gl.disable(gl.DITHER);
   gl.disable(gl.BLEND);
@@ -123,7 +123,7 @@ function startFluid(canvas: HTMLCanvasElement) {
       if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
         const message = gl.getShaderInfoLog(shader);
         gl.deleteShader(shader);
-        throw new Error(message || "Fluid shader failed");
+        throw new Error(message || 'Fluid shader failed');
       }
       return shader;
     };
@@ -135,50 +135,40 @@ function startFluid(canvas: HTMLCanvasElement) {
           fs = compile(
             gl.FRAGMENT_SHADER,
             (packed
-              ? header.replace(
-                  "#version 300 es",
-                  "#version 300 es\n#define PACKED_FIELDS",
-                )
+              ? header.replace('#version 300 es', '#version 300 es\n#define PACKED_FIELDS')
               : header) +
-              fragment.replace(
-                /result=([^;]+);/g,
-                "result=encodeField($1,outputKind);",
-              ),
+              fragment.replace(/result=([^;]+);/g, 'result=encodeField($1,outputKind);'),
           );
         gl.attachShader(program, vs);
         gl.attachShader(program, fs);
-        gl.bindAttribLocation(program, 0, "position");
+        gl.bindAttribLocation(program, 0, 'position');
         gl.linkProgram(program);
         gl.deleteShader(vs);
         gl.deleteShader(fs);
         if (!gl.getProgramParameter(program, gl.LINK_STATUS))
-          throw new Error("Fluid program failed");
+          throw new Error('Fluid program failed');
         const uniforms = Object.fromEntries(
           [
-            "sourceKind",
-            "outputKind",
-            "source",
-            "velocity",
-            "pressure",
-            "curl",
-            "texel",
-            "dt",
-            "decay",
-            "point",
-            "aspect",
-            "amount",
-            "radius",
+            'sourceKind',
+            'outputKind',
+            'source',
+            'velocity',
+            'pressure',
+            'curl',
+            'texel',
+            'dt',
+            'decay',
+            'point',
+            'aspect',
+            'amount',
+            'radius',
           ].map((key) => [key, gl.getUniformLocation(program, key)]),
         );
         return [name, { program, uniforms }];
       }),
     );
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
-      gl.STATIC_DRAW,
-    );
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     type Target = {
@@ -190,8 +180,7 @@ function startFluid(canvas: HTMLCanvasElement) {
     };
     const clearTarget = (target: Target | null) => {
       gl.bindFramebuffer(gl.FRAMEBUFFER, target?.fbo ?? null);
-      if (packed && target?.kind === 1)
-        gl.clearColor(128 / 255, 0, 128 / 255, 0);
+      if (packed && target?.kind === 1) gl.clearColor(128 / 255, 0, 128 / 255, 0);
       else if (packed && target?.kind === 2) gl.clearColor(128 / 255, 0, 0, 1);
       else gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -218,15 +207,9 @@ function startFluid(canvas: HTMLCanvasElement) {
         null,
       );
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-      gl.framebufferTexture2D(
-        gl.FRAMEBUFFER,
-        gl.COLOR_ATTACHMENT0,
-        gl.TEXTURE_2D,
-        texture,
-        0,
-      );
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
       if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE)
-        throw new Error("Fluid framebuffer unavailable");
+        throw new Error('Fluid framebuffer unavailable');
       const result = { texture, fbo, width, height, kind };
       clearTarget(result);
       return result;
@@ -266,17 +249,12 @@ function startFluid(canvas: HTMLCanvasElement) {
       });
       gl.uniform2f(pass.uniforms.texel, 1 / simW, 1 / simH);
       Object.entries(values).forEach(([key, value]) => {
-        if (typeof value === "number") gl.uniform1f(pass.uniforms[key], value);
+        if (typeof value === 'number') gl.uniform1f(pass.uniforms[key], value);
         else if (value.length === 2) gl.uniform2fv(pass.uniforms[key], value);
         else gl.uniform3fv(pass.uniforms[key], value);
       });
       gl.bindFramebuffer(gl.FRAMEBUFFER, dest?.fbo ?? null);
-      gl.viewport(
-        0,
-        0,
-        dest?.width ?? canvas.width,
-        dest?.height ?? canvas.height,
-      );
+      gl.viewport(0, 0, dest?.width ?? canvas.width, dest?.height ?? canvas.height);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
     let lastPoint: { x: number; y: number } | null = null;
@@ -298,10 +276,7 @@ function startFluid(canvas: HTMLCanvasElement) {
         const dx = x - lastPoint.x,
           dy = y - lastPoint.y;
         if (Math.hypot(dx, dy) > 0.0002) {
-          const count = Math.min(
-            8,
-            Math.ceil(Math.hypot(dx * aspect, dy) / 0.018),
-          );
+          const count = Math.min(8, Math.ceil(Math.hypot(dx * aspect, dy) / 0.018));
           for (let i = 1; i <= count; i++)
             queue.push({
               x: lastPoint.x + (dx * i) / count,
@@ -323,7 +298,7 @@ function startFluid(canvas: HTMLCanvasElement) {
     // browsers may cancel when a pan starts. Passive listeners keep scrolling free.
     let touchId: number | null = null;
     const move = (event: PointerEvent) => {
-      if (event.pointerType !== "touch" && touchId === null) movePoint(event);
+      if (event.pointerType !== 'touch' && touchId === null) movePoint(event);
     };
     const touchStart = (event: TouchEvent) => {
       if (event.touches.length !== 1) {
@@ -368,10 +343,7 @@ function startFluid(canvas: HTMLCanvasElement) {
       for (const point of queue.splice(0)) {
         const hue = now * 0.00012 + 0.25 + point.x * 0.22;
         const color = [0, 0.33, 0.67].map(
-          (shift) =>
-            0.12 +
-            1.5 *
-              Math.pow(0.5 + 0.5 * Math.cos((hue - shift) * Math.PI * 2), 3),
+          (shift) => 0.12 + 1.5 * Math.pow(0.5 + 0.5 * Math.cos((hue - shift) * Math.PI * 2), 3),
         );
         const params = {
           point: [point.x, point.y],
@@ -379,7 +351,7 @@ function startFluid(canvas: HTMLCanvasElement) {
           radius: 0.00032,
         };
         draw(
-          "splat",
+          'splat',
           velocity.write,
           { source: velocity.read },
           {
@@ -392,51 +364,36 @@ function startFluid(canvas: HTMLCanvasElement) {
           },
         );
         velocity.swap();
-        draw(
-          "splat",
-          dye.write,
-          { source: dye.read },
-          { ...params, amount: color },
-        );
+        draw('splat', dye.write, { source: dye.read }, { ...params, amount: color });
         dye.swap();
       }
       draw(
-        "advect",
+        'advect',
         velocity.write,
         { source: velocity.read, velocity: velocity.read },
         { dt, decay: 1.2 },
       );
       velocity.swap();
-      draw("curl", curl, { velocity: velocity.read });
-      draw(
-        "vorticity",
-        velocity.write,
-        { velocity: velocity.read, curl },
-        { dt },
-      );
+      draw('curl', curl, { velocity: velocity.read });
+      draw('vorticity', velocity.write, { velocity: velocity.read, curl }, { dt });
       velocity.swap();
-      draw("divergence", divergence, { velocity: velocity.read });
+      draw('divergence', divergence, { velocity: velocity.read });
       clearTarget(pressure.read);
       for (let i = 0; i < 18; i++) {
-        draw("pressure", pressure.write, {
+        draw('pressure', pressure.write, {
           pressure: pressure.read,
           source: divergence,
         });
         pressure.swap();
       }
-      draw("project", velocity.write, {
+      draw('project', velocity.write, {
         velocity: velocity.read,
         pressure: pressure.read,
       });
       velocity.swap();
-      draw(
-        "advect",
-        dye.write,
-        { source: dye.read, velocity: velocity.read },
-        { dt, decay: 1.1 },
-      );
+      draw('advect', dye.write, { source: dye.read, velocity: velocity.read }, { dt, decay: 1.1 });
       dye.swap();
-      draw("display", null, { source: dye.read });
+      draw('display', null, { source: dye.read });
       if (now < activeUntil) frame = requestAnimationFrame(render);
       else {
         clearTarget(null);
@@ -459,14 +416,30 @@ function startFluid(canvas: HTMLCanvasElement) {
         // Resize both axes together so the dye texture keeps square cells,
         // including when a desktop viewport becomes a narrow mobile viewport.
         const dyeScale = Math.min(640, 1536 / Math.max(aspect, 1 / aspect));
-        for (const field of [velocity.read, velocity.write, pressure.read,
-          pressure.write, curl, divergence, dye.read, dye.write]) {
+        for (const field of [
+          velocity.read,
+          velocity.write,
+          pressure.read,
+          pressure.write,
+          curl,
+          divergence,
+          dye.read,
+          dye.write,
+        ]) {
           field.width = field.kind === 0 ? Math.round(dyeScale * Math.max(1, aspect)) : simW;
           field.height = field.kind === 0 ? Math.round(dyeScale / Math.min(1, aspect)) : simH;
           gl.bindTexture(gl.TEXTURE_2D, field.texture);
-          gl.texImage2D(gl.TEXTURE_2D, 0, packed ? gl.RGBA8 : gl.RGBA16F,
-            field.width, field.height, 0, gl.RGBA,
-            packed ? gl.UNSIGNED_BYTE : gl.HALF_FLOAT, null);
+          gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            packed ? gl.RGBA8 : gl.RGBA16F,
+            field.width,
+            field.height,
+            0,
+            gl.RGBA,
+            packed ? gl.UNSIGNED_BYTE : gl.HALF_FLOAT,
+            null,
+          );
           clearTarget(field);
         }
         queue.length = 0;
@@ -487,35 +460,35 @@ function startFluid(canvas: HTMLCanvasElement) {
       clearTarget(null);
     };
     const exit = (event: PointerEvent) => {
-      if (event.pointerType !== "touch" && !event.relatedTarget) reset();
+      if (event.pointerType !== 'touch' && !event.relatedTarget) reset();
     };
     resize();
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
-    window.addEventListener("pointermove", move, { passive: true });
-    window.addEventListener("touchstart", touchStart, { passive: true });
-    window.addEventListener("touchmove", touchMove, { passive: true });
-    window.addEventListener("touchend", touchEnd, { passive: true });
-    window.addEventListener("touchcancel", touchEnd, { passive: true });
-    window.addEventListener("pointerout", exit);
-    window.addEventListener("blur", touchEnd);
-    window.addEventListener("scroll", scroll, { passive: true });
-    document.addEventListener("visibilitychange", visibility);
+    window.addEventListener('pointermove', move, { passive: true });
+    window.addEventListener('touchstart', touchStart, { passive: true });
+    window.addEventListener('touchmove', touchMove, { passive: true });
+    window.addEventListener('touchend', touchEnd, { passive: true });
+    window.addEventListener('touchcancel', touchEnd, { passive: true });
+    window.addEventListener('pointerout', exit);
+    window.addEventListener('blur', touchEnd);
+    window.addEventListener('scroll', scroll, { passive: true });
+    document.addEventListener('visibilitychange', visibility);
     return () => {
       observer.disconnect();
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("touchstart", touchStart);
-      window.removeEventListener("touchmove", touchMove);
-      window.removeEventListener("touchend", touchEnd);
-      window.removeEventListener("touchcancel", touchEnd);
-      window.removeEventListener("pointerout", exit);
-      window.removeEventListener("blur", touchEnd);
-      window.removeEventListener("scroll", scroll);
-      document.removeEventListener("visibilitychange", visibility);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('touchstart', touchStart);
+      window.removeEventListener('touchmove', touchMove);
+      window.removeEventListener('touchend', touchEnd);
+      window.removeEventListener('touchcancel', touchEnd);
+      window.removeEventListener('pointerout', exit);
+      window.removeEventListener('blur', touchEnd);
+      window.removeEventListener('scroll', scroll);
+      document.removeEventListener('visibilitychange', visibility);
       cleanup();
     };
   } catch (error) {
-    console.warn("Fluid effect unavailable:", error);
+    console.warn('Fluid effect unavailable:', error);
     cleanup();
     return () => {};
   }
@@ -526,7 +499,7 @@ export function FluidCanvas() {
   useEffect(() => {
     const element = canvas.current;
     if (!element) return;
-    const motion = matchMedia("(prefers-reduced-motion: reduce)");
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
     let dispose = () => {};
     const setup = () => {
       dispose();
@@ -536,15 +509,15 @@ export function FluidCanvas() {
         // Other platforms retain the existing WebGL effect.
         const compatible =
           /Windows/i.test(navigator.userAgent) ||
-          new URLSearchParams(location.search).get("fluid") === "cpu";
+          new URLSearchParams(location.search).get('fluid') === 'cpu';
         dispose = compatible ? startCpuFluid(element) : startFluid(element);
       }
     };
     setup();
-    motion.addEventListener("change", setup);
+    motion.addEventListener('change', setup);
     return () => {
       dispose();
-      motion.removeEventListener("change", setup);
+      motion.removeEventListener('change', setup);
     };
   }, []);
   return <canvas ref={canvas} className="fluid-canvas" aria-hidden="true" />;

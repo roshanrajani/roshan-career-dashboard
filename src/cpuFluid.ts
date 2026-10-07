@@ -1,9 +1,9 @@
 /** Compatibility solver: ordinary number arrays + Canvas 2D, no float GPU textures. */
 export function startCpuFluid(canvas: HTMLCanvasElement) {
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext('2d');
   if (!ctx) return () => {};
-  const ink = document.createElement("canvas");
-  const inkCtx = ink.getContext("2d")!;
+  const ink = document.createElement('canvas');
+  const inkCtx = ink.getContext('2d')!;
   let w = 0,
     h = 0,
     count = 0,
@@ -82,12 +82,7 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
       (field[i + w] * (1 - fx) + field[i + w + 1] * fx) * fy
     );
   };
-  const advect = (
-    source: Float32Array,
-    dest: Float32Array,
-    dt: number,
-    decay: number,
-  ) => {
+  const advect = (source: Float32Array, dest: Float32Array, dt: number, decay: number) => {
     for (let y = 0; y < h; y++)
       for (let x = 0; x < w; x++) {
         const i = y * w + x;
@@ -96,12 +91,7 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
   };
   // Correct the diffusion from backtracing, then clamp to nearby source values.
   // This preserves thin curls without allowing negative ink or bright fringes.
-  const transportInk = (
-    source: Float32Array,
-    dest: Float32Array,
-    dt: number,
-    decay: number,
-  ) => {
+  const transportInk = (source: Float32Array, dest: Float32Array, dt: number, decay: number) => {
     advect(source, dest, dt, 1);
     advect(dest, reverse, -dt, 1);
     for (let y = 0; y < h; y++)
@@ -110,23 +100,9 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
         const sx = Math.floor(Math.max(0, Math.min(w - 1.001, x - u[i] * dt)));
         const sy = Math.floor(Math.max(0, Math.min(h - 1.001, y - v[i] * dt)));
         const j = sy * w + sx;
-        const low = Math.min(
-          source[j],
-          source[j + 1],
-          source[j + w],
-          source[j + w + 1],
-        );
-        const high = Math.max(
-          source[j],
-          source[j + 1],
-          source[j + w],
-          source[j + w + 1],
-        );
-        dest[i] =
-          Math.max(
-            low,
-            Math.min(high, dest[i] + 0.5 * (source[i] - reverse[i])),
-          ) * decay;
+        const low = Math.min(source[j], source[j + 1], source[j + w], source[j + w + 1]);
+        const high = Math.max(source[j], source[j + 1], source[j + w], source[j + w + 1]);
+        dest[i] = Math.max(low, Math.min(high, dest[i] + 0.5 * (source[i] - reverse[i]))) * decay;
       }
   };
   const render = (now: number) => {
@@ -199,7 +175,7 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
     inkCtx.putImageData(pixels, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingQuality = 'high';
     // Ease the last faint residue out before putting the animation to sleep.
     const fade = Math.max(0, Math.min(1, (until - now) / 750));
     ctx.globalAlpha = fade * fade * (3 - 2 * fade);
@@ -226,27 +202,15 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
           radius = 2.8;
         const hue = performance.now() * 0.00007 + 0.25 + (x / w) * 0.22;
         const color = [0, 0.33, 0.67].map(
-          (shift) =>
-            0.08 +
-            Math.pow(0.5 + 0.5 * Math.cos((hue - shift) * Math.PI * 2), 3),
+          (shift) => 0.08 + Math.pow(0.5 + 0.5 * Math.cos((hue - shift) * Math.PI * 2), 3),
         );
         for (let step = 1; step <= steps; step++) {
           const cx = last.x + (dx * step) / steps,
             cy = last.y + (dy * step) / steps;
-          for (
-            let iy = Math.max(0, Math.floor(cy - 7));
-            iy < Math.min(h, cy + 7);
-            iy++
-          )
-            for (
-              let ix = Math.max(0, Math.floor(cx - 7));
-              ix < Math.min(w, cx + 7);
-              ix++
-            ) {
+          for (let iy = Math.max(0, Math.floor(cy - 7)); iy < Math.min(h, cy + 7); iy++)
+            for (let ix = Math.max(0, Math.floor(cx - 7)); ix < Math.min(w, cx + 7); ix++) {
               const i = iy * w + ix,
-                weight = Math.exp(
-                  -((ix - cx) ** 2 + (iy - cy) ** 2) / radius ** 2,
-                );
+                weight = Math.exp(-((ix - cx) ** 2 + (iy - cy) ** 2) / radius ** 2);
               u[i] += Math.max(-50, Math.min(50, (dx * 13) / steps)) * weight;
               v[i] += Math.max(-50, Math.min(50, (dy * 13) / steps)) * weight;
               red[i] = Math.min(5, red[i] + color[0] * weight * 0.5);
@@ -264,7 +228,7 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
     last = { x, y };
   };
   const move = (e: PointerEvent) => {
-    if (e.pointerType !== "touch" && touchId === null) movePoint(e);
+    if (e.pointerType !== 'touch' && touchId === null) movePoint(e);
   };
   const start = (e: TouchEvent) => {
     reset();
@@ -272,8 +236,7 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
     if (touchId !== null) movePoint(e.touches[0], true);
   };
   const touchMove = (e: TouchEvent) => {
-    if (e.touches.length === 1 && e.touches[0].identifier === touchId)
-      movePoint(e.touches[0]);
+    if (e.touches.length === 1 && e.touches[0].identifier === touchId) movePoint(e.touches[0]);
     else end();
   };
   const end = () => {
@@ -284,31 +247,31 @@ export function startCpuFluid(canvas: HTMLCanvasElement) {
     if (touchId === null) reset();
   };
   const exit = (e: PointerEvent) => {
-    if (!e.relatedTarget && e.pointerType !== "touch") reset();
+    if (!e.relatedTarget && e.pointerType !== 'touch') reset();
   };
   resize();
   const observer = new ResizeObserver(resize);
   observer.observe(canvas);
-  window.addEventListener("pointermove", move, { passive: true });
-  window.addEventListener("pointerout", exit);
-  window.addEventListener("touchstart", start, { passive: true });
-  window.addEventListener("touchmove", touchMove, { passive: true });
-  window.addEventListener("touchend", end, { passive: true });
-  window.addEventListener("touchcancel", end, { passive: true });
-  window.addEventListener("scroll", scroll, { passive: true });
-  window.addEventListener("blur", end);
-  document.addEventListener("visibilitychange", clear);
+  window.addEventListener('pointermove', move, { passive: true });
+  window.addEventListener('pointerout', exit);
+  window.addEventListener('touchstart', start, { passive: true });
+  window.addEventListener('touchmove', touchMove, { passive: true });
+  window.addEventListener('touchend', end, { passive: true });
+  window.addEventListener('touchcancel', end, { passive: true });
+  window.addEventListener('scroll', scroll, { passive: true });
+  window.addEventListener('blur', end);
+  document.addEventListener('visibilitychange', clear);
   return () => {
     clear();
     observer.disconnect();
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerout", exit);
-    window.removeEventListener("touchstart", start);
-    window.removeEventListener("touchmove", touchMove);
-    window.removeEventListener("touchend", end);
-    window.removeEventListener("touchcancel", end);
-    window.removeEventListener("scroll", scroll);
-    window.removeEventListener("blur", end);
-    document.removeEventListener("visibilitychange", clear);
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerout', exit);
+    window.removeEventListener('touchstart', start);
+    window.removeEventListener('touchmove', touchMove);
+    window.removeEventListener('touchend', end);
+    window.removeEventListener('touchcancel', end);
+    window.removeEventListener('scroll', scroll);
+    window.removeEventListener('blur', end);
+    document.removeEventListener('visibilitychange', clear);
   };
 }
