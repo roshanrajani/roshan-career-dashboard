@@ -358,6 +358,34 @@ footer {
   color: var(--secondary);
   font-weight: 500;
 }
+.proof-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.proof-strip > div {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 22px 20px;
+  border-right: 1px solid var(--border);
+}
+.proof-strip > div:first-child {
+  padding-left: 0;
+}
+.proof-strip > div:last-child {
+  border-right: 0;
+}
+.proof-strip strong {
+  color: var(--bright);
+  font: 600 15px/1.3 Manrope, sans-serif;
+}
+.proof-strip span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
 .portrait-composition {
   position: relative;
   margin: 10px 18px 30px 0;
@@ -1535,6 +1563,26 @@ dialog::backdrop {
   padding: 22px 0;
   font-size: 14px;
 }
+.case-study-intro {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin: 28px 0 34px;
+}
+.case-study-intro > div {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.case-label {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--accent-ink);
+  font: 9px monospace;
+  letter-spacing: 1.4px;
+}
+.case-study-intro p {
+  margin: 0;
+}
 .footer-extras {
   display: flex;
   gap: 20px;
@@ -1550,6 +1598,23 @@ footer {
   .hero-topline {
     flex-wrap: wrap;
     gap: 12px;
+  }
+  .proof-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .proof-strip > div,
+  .proof-strip > div:first-child {
+    padding: 18px 12px;
+  }
+  .proof-strip > div:nth-child(2) {
+    border-right: 0;
+  }
+  .proof-strip > div:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--border);
+  }
+  .case-study-intro {
+    grid-template-columns: 1fr;
+    gap: 18px;
   }
 }
 .header-actions {

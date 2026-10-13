@@ -140,9 +140,9 @@ function App() {
                       <em>Clear experiences.</em>
                     </h1>
                     <p className="hero-description">
-                      I’m Roshan Rajani, a senior / lead frontend engineer with 10+ years of
-                      experience building secure enterprise applications in retirement, banking,
-                      payments, and HR.
+                      I lead frontend work for high-stakes financial products—turning complex
+                      retirement, banking, and payment workflows into clear, accessible experiences
+                      that teams can confidently ship and support.
                     </p>
                     <div className="hero-actions">
                       <button className="hero-button" onClick={() => nav('Projects')}>
@@ -166,6 +166,24 @@ function App() {
                         <strong>Roshan Rajani</strong>
                       </figcaption>
                     </figure>
+                  </div>
+                </div>
+                <div className="proof-strip" aria-label="Career highlights">
+                  <div>
+                    <strong>10+ years</strong>
+                    <span>Frontend engineering</span>
+                  </div>
+                  <div>
+                    <strong>5 organizations</strong>
+                    <span>Finance, payroll & enterprise</span>
+                  </div>
+                  <div>
+                    <strong>Angular + React</strong>
+                    <span>Architecture through delivery</span>
+                  </div>
+                  <div>
+                    <strong>Production ownership</strong>
+                    <span>Accessibility, releases & support</span>
                   </div>
                 </div>
                 <div className="company-strip">
@@ -434,7 +452,7 @@ function App() {
           {view === 'Overview' && (
             <section className="leadership-section">
               <span className="eyebrow">HOW I CONTRIBUTE</span>
-              <h2>Beyond the component.</h2>
+              <h2>What teams can count on.</h2>
               <div className="leadership-grid">
                 <article>
                   <h3>Architecture & integration</h3>
@@ -509,9 +527,17 @@ function App() {
             <span className="client-badge">{selected.client}</span>
             <p className="eyebrow">{selected.category}</p>
             <h2>{selected.name}</h2>
-            <p>{selected.description}</p>
-            <p className="work-context">{selected.context}</p>
-            <h3>My contributions</h3>
+            <div className="case-study-intro">
+              <div>
+                <span className="case-label">THE PRODUCT</span>
+                <p>{selected.description}</p>
+              </div>
+              <div>
+                <span className="case-label">ROLE & SCOPE</span>
+                <p className="work-context">{selected.context}</p>
+              </div>
+            </div>
+            <h3>Engineering decisions & contributions</h3>
             <ul>
               {selected.focus.map((f) => (
                 <li key={f}>{f}</li>
@@ -523,8 +549,8 @@ function App() {
               ))}
             </div>
             <p className="source-note">
-              Selected contributions and project context. Employer code and internal screens are not
-              published here.
+              This case study focuses on my role, technical decisions, and delivery context. Employer
+              code, customer data, and internal screens remain private.
             </p>
             <button className="outline-button" onClick={() => toggle(selected.id)}>
               {saved.includes(selected.id) ? 'Remove from saved' : 'Save project'}
